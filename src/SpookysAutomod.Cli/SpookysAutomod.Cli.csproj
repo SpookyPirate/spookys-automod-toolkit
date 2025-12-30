@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SpookysAutomod.Core\SpookysAutomod.Core.csproj" />
     <ProjectReference Include="..\SpookysAutomod.Esp\SpookysAutomod.Esp.csproj" />
+    <ProjectReference Include="..\SpookysAutomod.Papyrus\SpookysAutomod.Papyrus.csproj" />
   </ItemGroup>
 
 </Project>
