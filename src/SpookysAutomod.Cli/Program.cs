@@ -18,6 +18,8 @@ rootCommand.AddGlobalOption(verboseOption);
 // Add subcommands with shared options
 rootCommand.AddCommand(EspCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(PapyrusCommands.Create(jsonOption, verboseOption));
+rootCommand.AddCommand(NifCommands.Create(jsonOption, verboseOption));
+rootCommand.AddCommand(ArchiveCommands.Create(jsonOption, verboseOption));
 
 // Run
 return await rootCommand.InvokeAsync(args);

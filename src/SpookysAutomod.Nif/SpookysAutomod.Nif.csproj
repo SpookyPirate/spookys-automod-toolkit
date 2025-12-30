@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>SpookysAutomod.Nif</RootNamespace>
+  </PropertyGroup>
+
+  <!-- NiflySharp removed - using direct binary parsing for now -->
+  <!-- Full NIF editing support planned for future version -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpookysAutomod.Core\SpookysAutomod.Core.csproj" />
+  </ItemGroup>
+
+</Project>
