@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "{{PROJECT_NAME}}",
+  "version-string": "{{VERSION_MAJOR}}.{{VERSION_MINOR}}.{{VERSION_PATCH}}",
+  "description": "{{DESCRIPTION}}",
+  "dependencies": [
+    {
+      "name": "commonlibsse-ng",
+      "version>=": "3.7.0"
+    },
+    "spdlog"
+  ],
+  "builtin-baseline": "c9fa965c2a1b1334469b4539063f3ce95383653c"
+}

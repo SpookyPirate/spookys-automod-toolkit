@@ -18,6 +18,7 @@
     <ProjectReference Include="..\SpookysAutomod.Archive\SpookysAutomod.Archive.csproj" />
     <ProjectReference Include="..\SpookysAutomod.Mcm\SpookysAutomod.Mcm.csproj" />
     <ProjectReference Include="..\SpookysAutomod.Audio\SpookysAutomod.Audio.csproj" />
+    <ProjectReference Include="..\SpookysAutomod.Skse\SpookysAutomod.Skse.csproj" />
   </ItemGroup>
 
 </Project>

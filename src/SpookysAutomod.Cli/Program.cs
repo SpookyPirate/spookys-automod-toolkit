@@ -22,6 +22,7 @@ rootCommand.AddCommand(NifCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(ArchiveCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(McmCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(AudioCommands.Create(jsonOption, verboseOption));
+rootCommand.AddCommand(SkseCommands.Create(jsonOption, verboseOption));
 
 // Run
 return await rootCommand.InvokeAsync(args);
