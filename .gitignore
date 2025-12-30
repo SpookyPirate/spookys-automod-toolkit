@@ -13,13 +13,16 @@ out/
 *.nupkg
 packages/
 
-# Test outputs
+# Test outputs (generated mod files)
 *.esp
 *.esm
 *.esl
 *.seq
 *.bsa
 *.ba2
+
+# Exception: Don't ignore source directories that end with .Esp
+!**/SpookysAutomod.Esp/
 
 # Tools (auto-downloaded)
 tools/

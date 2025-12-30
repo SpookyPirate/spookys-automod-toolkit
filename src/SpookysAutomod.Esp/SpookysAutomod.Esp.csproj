@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>SpookysAutomod.Esp</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mutagen.Bethesda.Skyrim" Version="0.52.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpookysAutomod.Core\SpookysAutomod.Core.csproj" />
+  </ItemGroup>
+
+</Project>
