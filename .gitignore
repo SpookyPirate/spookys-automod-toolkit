@@ -1,0 +1,29 @@
+# Build outputs
+bin/
+obj/
+out/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# NuGet
+*.nupkg
+packages/
+
+# Test outputs
+*.esp
+*.esm
+*.esl
+*.seq
+*.bsa
+*.ba2
+
+# Tools (auto-downloaded)
+tools/
+
+# OS
+.DS_Store
+Thumbs.db

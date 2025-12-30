@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Authors>Spooky</Authors>
+    <Company>SkyrimNet</Company>
+    <Product>Spooky's AutoMod Toolkit</Product>
+    <Description>LLM-friendly toolkit for autonomous Skyrim mod creation</Description>
+  </PropertyGroup>
+</Project>
