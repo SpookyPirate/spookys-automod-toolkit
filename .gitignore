@@ -14,7 +14,6 @@ out/
 packages/
 
 # Test outputs (generated mod files)
-*.esp
 *.esm
 *.esl
 *.seq
