@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>SpookysAutomod.Audio</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpookysAutomod.Core\SpookysAutomod.Core.csproj" />
+  </ItemGroup>
+
+</Project>

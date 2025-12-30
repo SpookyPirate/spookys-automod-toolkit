@@ -16,6 +16,8 @@
     <ProjectReference Include="..\SpookysAutomod.Papyrus\SpookysAutomod.Papyrus.csproj" />
     <ProjectReference Include="..\SpookysAutomod.Nif\SpookysAutomod.Nif.csproj" />
     <ProjectReference Include="..\SpookysAutomod.Archive\SpookysAutomod.Archive.csproj" />
+    <ProjectReference Include="..\SpookysAutomod.Mcm\SpookysAutomod.Mcm.csproj" />
+    <ProjectReference Include="..\SpookysAutomod.Audio\SpookysAutomod.Audio.csproj" />
   </ItemGroup>
 
 </Project>

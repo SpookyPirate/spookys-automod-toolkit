@@ -20,6 +20,8 @@ rootCommand.AddCommand(EspCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(PapyrusCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(NifCommands.Create(jsonOption, verboseOption));
 rootCommand.AddCommand(ArchiveCommands.Create(jsonOption, verboseOption));
+rootCommand.AddCommand(McmCommands.Create(jsonOption, verboseOption));
+rootCommand.AddCommand(AudioCommands.Create(jsonOption, verboseOption));
 
 // Run
 return await rootCommand.InvokeAsync(args);
