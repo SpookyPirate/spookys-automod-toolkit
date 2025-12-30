@@ -110,49 +110,58 @@ public static class ArchiveCommands
             var logger = CreateLogger(json, verbose);
             var service = new ArchiveService(logger);
 
-            var result = service.ListFiles(archive, filter);
+            // Get total count first for display purposes
+            var infoResult = service.GetInfo(archive);
+            var totalCount = infoResult.Success ? infoResult.Value!.FileCount : 0;
+
+            // Apply limit (0 = no limit)
+            int? effectiveLimit = limit > 0 ? limit : null;
+            var result = service.ListFiles(archive, filter, effectiveLimit);
 
             if (json)
             {
                 if (result.Success)
                 {
                     var files = result.Value!;
-                    if (limit > 0) files = files.Take(limit).ToList();
-
                     Console.WriteLine(new
                     {
                         success = true,
                         result = new
                         {
                             files = files.Select(f => new { path = f.Path, size = f.Size, compressed = f.IsCompressed }),
-                            count = result.Value!.Count,
+                            totalInArchive = totalCount,
                             showing = files.Count
                         }
                     }.ToJson());
                 }
                 else
                 {
-                    Console.WriteLine(Result.Fail(result.Error!).ToJson(true));
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                    Environment.ExitCode = 1;
                 }
             }
             else if (result.Success)
             {
                 var files = result.Value!;
-                var totalCount = files.Count;
-                if (limit > 0) files = files.Take(limit).ToList();
-
-                Console.WriteLine($"Files ({files.Count} of {totalCount}):");
+                Console.WriteLine($"Files ({files.Count}" + (totalCount > 0 ? $" of {totalCount}" : "") + "):");
                 foreach (var file in files.OrderBy(f => f.Path))
                 {
-                    var sizeInfo = file.IsCompressed ? $" ({FormatSize(file.CompressedSize)} -> {FormatSize(file.Size)})" : $" ({FormatSize(file.Size)})";
-                    Console.WriteLine($"  {file.Path}{sizeInfo}");
+                    var sizeStr = file.Size > 0 ? $" ({FormatSize(file.Size)})" : "";
+                    var compStr = file.IsCompressed ? " [compressed]" : "";
+                    Console.WriteLine($"  {file.Path}{sizeStr}{compStr}");
                 }
-                if (limit > 0 && totalCount > limit)
-                    Console.WriteLine($"  ... and {totalCount - limit} more (use --limit 0 to show all)");
+                if (limit > 0 && files.Count >= limit && totalCount > limit)
+                    Console.WriteLine($"  ... use --limit 0 to show all files");
             }
             else
             {
                 Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
                 Environment.ExitCode = 1;
             }
         }, archiveArg, filterOption, limitOption, _jsonOption, _verboseOption);

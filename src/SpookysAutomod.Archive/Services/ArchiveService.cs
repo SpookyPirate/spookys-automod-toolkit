@@ -80,22 +80,237 @@ public class ArchiveService
     }
 
     /// <summary>
-    /// List files in an archive (requires BSArch).
+    /// List files in an archive by reading BSA/BA2 file tables.
     /// </summary>
-    public Result<List<ArchiveFileEntry>> ListFiles(string archivePath, string? filter = null)
+    public Result<List<ArchiveFileEntry>> ListFiles(string archivePath, string? filter = null, int? limit = null)
     {
         if (!File.Exists(archivePath))
         {
             return Result<List<ArchiveFileEntry>>.Fail($"File not found: {archivePath}");
         }
 
-        return Result<List<ArchiveFileEntry>>.Fail(
-            "Archive file listing requires extraction. Use 'archive extract' command.",
-            suggestions: new List<string>
+        try
+        {
+            using var stream = File.OpenRead(archivePath);
+            using var reader = new BinaryReader(stream);
+
+            var magic = reader.ReadUInt32();
+
+            if (magic == 0x00415342) // BSA
             {
-                "Use BSA Browser for browsing archive contents",
-                "Extract the archive to list files"
+                return ReadBsaFileList(reader, filter, limit);
+            }
+            else if (magic == 0x58445442) // BA2
+            {
+                return ReadBa2FileList(reader, filter, limit);
+            }
+            else
+            {
+                return Result<List<ArchiveFileEntry>>.Fail($"Not a valid BSA/BA2 archive");
+            }
+        }
+        catch (Exception ex)
+        {
+            return Result<List<ArchiveFileEntry>>.Fail($"Failed to list archive: {ex.Message}");
+        }
+    }
+
+    private Result<List<ArchiveFileEntry>> ReadBsaFileList(BinaryReader reader, string? filter, int? limit)
+    {
+        var entries = new List<ArchiveFileEntry>();
+
+        // Read BSA header (we already read magic)
+        var version = reader.ReadUInt32();
+        var folderOffset = reader.ReadUInt32();
+        var archiveFlags = reader.ReadUInt32();
+        var folderCount = reader.ReadUInt32();
+        var fileCount = reader.ReadUInt32();
+        var totalFolderNameLength = reader.ReadUInt32();
+        var totalFileNameLength = reader.ReadUInt32();
+        var fileFlags = reader.ReadUInt32();
+
+        bool hasFileNames = (archiveFlags & 0x2) != 0;
+        bool compressedByDefault = (archiveFlags & 0x4) != 0;
+        bool isSse = version == 105; // SSE uses version 105
+
+        if (!hasFileNames)
+        {
+            return Result<List<ArchiveFileEntry>>.Fail(
+                "Archive does not contain file names",
+                suggestions: new List<string> { "Use BSA Browser or extract the archive" });
+        }
+
+        // Read folder records
+        var folderRecords = new List<(ulong hash, uint count, ulong offset)>();
+        for (int i = 0; i < folderCount; i++)
+        {
+            var hash = reader.ReadUInt64();
+            var count = reader.ReadUInt32();
+            if (isSse)
+            {
+                reader.ReadUInt32(); // unknown padding
+                var offset = reader.ReadUInt64();
+                folderRecords.Add((hash, count, offset));
+            }
+            else
+            {
+                var offset = reader.ReadUInt32();
+                folderRecords.Add((hash, count, offset));
+            }
+        }
+
+        // Read file record blocks (each folder has a name followed by file records)
+        var folderNames = new List<string>();
+        var fileRecords = new List<(string folder, ulong hash, uint size, uint offset)>();
+
+        foreach (var folder in folderRecords)
+        {
+            // Read folder name (length-prefixed string)
+            var nameLen = reader.ReadByte();
+            var nameBytes = reader.ReadBytes(nameLen);
+            var folderName = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+            folderNames.Add(folderName);
+
+            // Read file records for this folder
+            for (int i = 0; i < folder.count; i++)
+            {
+                var hash = reader.ReadUInt64();
+                var size = reader.ReadUInt32();
+                var offset = reader.ReadUInt32();
+                fileRecords.Add((folderName, hash, size, offset));
+            }
+        }
+
+        // Read file names block
+        var fileNamesStart = reader.BaseStream.Position;
+        var fileNamesData = reader.ReadBytes((int)totalFileNameLength);
+        var fileNames = System.Text.Encoding.ASCII.GetString(fileNamesData)
+            .Split('\0', StringSplitOptions.RemoveEmptyEntries);
+
+        // Build file entries
+        for (int i = 0; i < fileRecords.Count && i < fileNames.Length; i++)
+        {
+            var record = fileRecords[i];
+            var fileName = fileNames[i];
+            var fullPath = string.IsNullOrEmpty(record.folder)
+                ? fileName
+                : $"{record.folder}\\{fileName}";
+
+            // Check filter
+            if (!string.IsNullOrEmpty(filter))
+            {
+                if (!fullPath.Contains(filter, StringComparison.OrdinalIgnoreCase) &&
+                    !MatchesGlobPattern(fullPath, filter))
+                {
+                    continue;
+                }
+            }
+
+            // Check compression flag (bit 30 of size toggles default compression)
+            var rawSize = record.size;
+            var isCompressed = compressedByDefault;
+            if ((rawSize & 0x40000000) != 0)
+            {
+                isCompressed = !isCompressed;
+                rawSize &= 0x3FFFFFFF;
+            }
+
+            entries.Add(new ArchiveFileEntry
+            {
+                Path = fullPath,
+                Size = rawSize,
+                IsCompressed = isCompressed
             });
+
+            if (limit.HasValue && entries.Count >= limit.Value)
+                break;
+        }
+
+        return Result<List<ArchiveFileEntry>>.Ok(entries);
+    }
+
+    private Result<List<ArchiveFileEntry>> ReadBa2FileList(BinaryReader reader, string? filter, int? limit)
+    {
+        var entries = new List<ArchiveFileEntry>();
+
+        // BA2 header
+        var version = reader.ReadUInt32();
+        var typeBytes = reader.ReadBytes(4);
+        var type = System.Text.Encoding.ASCII.GetString(typeBytes).Trim('\0');
+        var fileCount = reader.ReadUInt32();
+        var nameTableOffset = reader.ReadUInt64();
+
+        // For GNRL (general) BA2, file records are 36 bytes each
+        // For DX10 (texture) BA2, they're different
+        if (type != "GNRL")
+        {
+            // For texture BA2s, we can still read the name table
+            reader.BaseStream.Seek((long)nameTableOffset, SeekOrigin.Begin);
+        }
+        else
+        {
+            // Skip file records and go to name table
+            reader.BaseStream.Seek((long)nameTableOffset, SeekOrigin.Begin);
+        }
+
+        // Read name table
+        for (int i = 0; i < fileCount; i++)
+        {
+            var nameLen = reader.ReadUInt16();
+            var nameBytes = reader.ReadBytes(nameLen);
+            var fileName = System.Text.Encoding.ASCII.GetString(nameBytes);
+
+            // Check filter
+            if (!string.IsNullOrEmpty(filter))
+            {
+                if (!fileName.Contains(filter, StringComparison.OrdinalIgnoreCase) &&
+                    !MatchesGlobPattern(fileName, filter))
+                {
+                    continue;
+                }
+            }
+
+            entries.Add(new ArchiveFileEntry
+            {
+                Path = fileName,
+                Size = 0, // Would need to read file records for size
+                IsCompressed = true // BA2 files are typically compressed
+            });
+
+            if (limit.HasValue && entries.Count >= limit.Value)
+                break;
+        }
+
+        return Result<List<ArchiveFileEntry>>.Ok(entries);
+    }
+
+    private static bool MatchesGlobPattern(string path, string pattern)
+    {
+        // Simple glob matching for *.ext patterns
+        if (pattern.StartsWith("*"))
+        {
+            var ext = pattern.Substring(1);
+            return path.EndsWith(ext, StringComparison.OrdinalIgnoreCase);
+        }
+        if (pattern.EndsWith("*"))
+        {
+            var prefix = pattern.Substring(0, pattern.Length - 1);
+            return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+        if (pattern.Contains("*"))
+        {
+            var parts = pattern.Split('*');
+            var idx = 0;
+            foreach (var part in parts)
+            {
+                if (string.IsNullOrEmpty(part)) continue;
+                var found = path.IndexOf(part, idx, StringComparison.OrdinalIgnoreCase);
+                if (found < idx) return false;
+                idx = found + part.Length;
+            }
+            return true;
+        }
+        return false;
     }
 
     /// <summary>
