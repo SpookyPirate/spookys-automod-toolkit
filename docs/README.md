@@ -1,12 +1,31 @@
-# Spooky's AutoMod Toolkit
+# Spooky's AutoMod Toolkit Documentation
 
-A comprehensive LLM-friendly CLI toolkit for autonomous Skyrim mod creation.
+Complete reference documentation for all modules.
+
+## Module References
+
+| Module | Purpose | Documentation |
+|--------|---------|---------------|
+| ESP | Plugin files (.esp/.esl) | [esp.md](esp.md) |
+| Papyrus | Script compilation/decompilation | [papyrus.md](papyrus.md) |
+| Archive | BSA/BA2 archives | [archive.md](archive.md) |
+| MCM | Mod configuration menus | [mcm.md](mcm.md) |
+| NIF | 3D mesh files | [nif.md](nif.md) |
+| Audio | FUZ/XWM/WAV audio | [audio.md](audio.md) |
+| SKSE | SKSE C++ plugin projects | [skse.md](skse.md) |
+
+## Quick Links
+
+- [LLM Usage Guide](llm-guide.md) - Patterns and examples for AI assistants
+- [Main README](../README.md) - Installation and quick start
+
+---
 
 ## Overview
 
 This toolkit enables LLMs and developers to create and edit Skyrim mods programmatically:
 
-- **ESP/ESL Plugins** - Create and modify plugin files with quests, spells, globals, and scripts
+- **ESP/ESL Plugins** - Create and modify plugin files with quests, spells, globals, weapons, armor, NPCs, books, perks
 - **Papyrus Scripts** - Compile, decompile, validate, and generate Papyrus scripts
 - **NIF Meshes** - Inspect mesh files, extract textures, scale models
 - **BSA/BA2 Archives** - Create and extract game archives
@@ -14,184 +33,195 @@ This toolkit enables LLMs and developers to create and edit Skyrim mods programm
 - **Audio Files** - Convert and manipulate FUZ, XWM, and WAV audio
 - **SKSE Plugins** - Generate C++ SKSE plugin projects with CommonLibSSE-NG
 
-## Installation
+---
 
-### Prerequisites
+## Global Options
 
-- .NET 8.0 SDK or later
-- Windows (required for some external tools)
+All commands support these options:
 
-### Build from Source
+| Option | Description |
+|--------|-------------|
+| `--json` | Output in JSON format for machine parsing |
+| `--verbose` | Show detailed output |
+| `--help` | Show command help |
 
-```bash
-git clone https://github.com/SpookyPirate/spookys-automod-toolkit.git
-cd spookys-automod-toolkit
-dotnet build
+---
+
+## Command Structure
+
+```
+spookys-automod <module> <command> [arguments] [options]
 ```
 
-### Run the CLI
-
+Examples:
 ```bash
-dotnet run --project src/SpookysAutomod.Cli -- <command>
+spookys-automod esp create "MyMod.esp" --light
+spookys-automod papyrus compile "./Scripts" --output "./Scripts" --headers "..."
+spookys-automod archive extract "MyMod.bsa" --output "./Extracted"
 ```
 
-Or build and run the executable directly:
+---
 
-```bash
-dotnet publish -c Release
-./src/SpookysAutomod.Cli/bin/Release/net8.0/spookys-automod <command>
-```
+## JSON Output Format
 
-## Quick Start
+All commands return consistent JSON when using `--json`:
 
-```bash
-# Create a new light plugin
-spookys-automod esp create "MyMod" --light --author "YourName"
-
-# Add a quest
-spookys-automod esp add-quest "MyMod.esp" "MyQuest" --name "My Quest" --start-enabled
-
-# Generate a script template
-spookys-automod papyrus generate --name "MyScript" --extends "Quest" --output ./Scripts
-
-# Create MCM configuration
-spookys-automod mcm create "MyMod" "My Mod Settings" --output ./MCM/config.json
-
-# Generate SKSE plugin project
-spookys-automod skse create "MyPlugin" --template papyrus-native --author "YourName"
-```
-
-## Modules
-
-### ESP Module
-
-Create and manipulate ESP/ESL plugin files using Mutagen.
-
-```bash
-spookys-automod esp create <name> [--light] [--author <name>]
-spookys-automod esp info <plugin>
-spookys-automod esp add-quest <plugin> <editorId> [--name <name>] [--start-enabled]
-spookys-automod esp add-spell <plugin> <editorId> [--name <name>] [--type <type>]
-spookys-automod esp add-global <plugin> <editorId> [--type <type>] [--value <value>]
-spookys-automod esp attach-script <plugin> --quest <id> --script <name>
-spookys-automod esp generate-seq <plugin> --output <dir>
-```
-
-### Papyrus Module
-
-Compile, decompile, and manage Papyrus scripts.
-
-```bash
-spookys-automod papyrus status                    # Check tool availability
-spookys-automod papyrus download                  # Download compiler/decompiler
-spookys-automod papyrus compile <source> --output <dir> --headers <dir>
-spookys-automod papyrus decompile <pex> --output <dir>
-spookys-automod papyrus validate <psc>
-spookys-automod papyrus generate --name <name> --extends <type> --output <dir>
-```
-
-### NIF Module
-
-Inspect and manipulate NIF mesh files.
-
-```bash
-spookys-automod nif info <file>
-spookys-automod nif textures <file>
-spookys-automod nif scale <file> <factor> --output <file>
-spookys-automod nif copy <file> --output <file>
-```
-
-### Archive Module
-
-Create and extract BSA/BA2 archives.
-
-```bash
-spookys-automod archive info <archive>
-spookys-automod archive list <archive>
-spookys-automod archive extract <archive> --output <dir>
-spookys-automod archive create <directory> --output <file> [--compress]
-```
-
-### MCM Module
-
-Generate MCM Helper configuration files.
-
-```bash
-spookys-automod mcm create <modName> <displayName> --output <file>
-spookys-automod mcm info <config>
-spookys-automod mcm validate <config>
-spookys-automod mcm add-toggle <config> <id> <text> [--help-text <text>]
-spookys-automod mcm add-slider <config> <id> <text> --min <n> --max <n> [--step <n>]
-```
-
-### Audio Module
-
-Convert and manipulate audio files.
-
-```bash
-spookys-automod audio info <file>
-spookys-automod audio extract-fuz <fuz> --output <dir>
-spookys-automod audio create-fuz <xwm> --lip <lip> --output <fuz>
-spookys-automod audio wav-to-xwm <wav> --output <xwm>
-```
-
-### SKSE Module
-
-Generate SKSE C++ plugin projects.
-
-```bash
-spookys-automod skse templates                     # List available templates
-spookys-automod skse create <name> --template <template> [--author <name>]
-spookys-automod skse info <project>
-spookys-automod skse add-function <project> --name <func> --return <type> [--param <type:name>]
-```
-
-**Available Templates:**
-- `basic` - Simple SKSE plugin with event handlers
-- `papyrus-native` - SKSE plugin with Papyrus native function support
-
-## JSON Output
-
-All commands support `--json` flag for structured output, ideal for LLM parsing:
-
-```bash
-spookys-automod esp info "MyMod.esp" --json
-```
-
+**Success:**
 ```json
 {
   "success": true,
-  "result": {
-    "fileName": "MyMod.esp",
-    "isLight": true,
-    "author": "YourName",
-    "totalRecords": 5
-  }
+  "result": { ... }
 }
 ```
 
-Error responses include context and suggestions:
-
+**Error:**
 ```json
 {
   "success": false,
-  "error": "Compilation failed",
-  "errorContext": "Missing EndFunction at line 15",
-  "suggestions": ["Add 'EndFunction' after line 20"]
+  "error": "Error message",
+  "errorContext": "Additional details",
+  "suggestions": ["Suggested fix 1", "Suggested fix 2"]
 }
 ```
 
+---
+
 ## External Tools
 
-Some modules require external tools that are automatically downloaded on first use:
+| Tool | Module | Auto-Download | Manual Install |
+|------|--------|---------------|----------------|
+| papyrus-compiler | Papyrus | Yes | - |
+| Champollion | Papyrus | Yes | - |
+| BSArch | Archive | No | [xEdit releases](https://github.com/TES5Edit/TES5Edit/releases) |
 
-| Tool | Source | Purpose |
-|------|--------|---------|
-| papyrus-compiler | [russo-2025](https://github.com/russo-2025/papyrus-compiler) | Compile PSC to PEX |
-| Champollion | [Orvid](https://github.com/Orvid/Champollion) | Decompile PEX to PSC |
+---
 
-Tools are stored in the `tools/` directory and auto-detected.
+## Common Workflows
 
-## License
+### Create a Complete Mod
 
-MIT License - See LICENSE file for details.
+```bash
+# 1. Create plugin
+esp create "MyMod.esp" --light --author "YourName"
+
+# 2. Add content
+esp add-book "MyMod.esp" "MyBook" --name "Lore Book" --text "Content..."
+esp add-weapon "MyMod.esp" "MySword" --name "Epic Sword" --damage 30 --model iron-sword
+
+# 3. Check results
+esp info "MyMod.esp"
+```
+
+### Create a Quest with Script
+
+```bash
+# 1. Create plugin and quest
+esp create "MyQuestMod.esp" --light
+esp add-quest "MyQuestMod.esp" "MyQuest" --name "My Quest" --start-enabled
+
+# 2. Generate and compile script
+papyrus generate --name "MyQuestScript" --extends Quest --output "./Scripts/Source"
+papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+
+# 3. Attach script and generate SEQ
+esp attach-script "MyQuestMod.esp" --quest "MyQuest" --script "MyQuestScript"
+esp generate-seq "MyQuestMod.esp" --output "./"
+```
+
+### Create MCM Configuration
+
+```bash
+# 1. Create config
+mcm create "MyMod" "My Mod Settings" --output "./MCM/config.json"
+
+# 2. Add controls
+mcm add-toggle "./MCM/config.json" "bEnabled" "Enable Mod"
+mcm add-slider "./MCM/config.json" "fDamage" "Damage Multiplier" --min 0.5 --max 2.0
+
+# 3. Validate
+mcm validate "./MCM/config.json"
+```
+
+### Package Mod as BSA
+
+```bash
+# 1. Organize files in Data structure
+# MyModData/meshes/..., MyModData/textures/..., etc.
+
+# 2. Create archive
+archive create "./MyModData" --output "MyMod.bsa" --compress
+```
+
+---
+
+## Quick Command Reference
+
+### ESP
+```bash
+esp create <name> [--light] [--author]
+esp info <plugin>
+esp add-quest <plugin> <editorId> [--name] [--start-enabled]
+esp add-spell <plugin> <editorId> [--name] [--type] [--cost] [--effect] [--magnitude] [--duration]
+esp add-global <plugin> <editorId> [--type] [--value]
+esp add-weapon <plugin> <editorId> [--name] [--type] [--damage] [--model]
+esp add-armor <plugin> <editorId> [--name] [--type] [--slot] [--rating] [--model]
+esp add-npc <plugin> <editorId> [--name] [--level] [--essential]
+esp add-book <plugin> <editorId> [--name] [--text] [--value]
+esp add-perk <plugin> <editorId> [--name] [--description] [--playable] [--effect] [--bonus]
+esp attach-script <plugin> --quest <id> --script <name>
+esp generate-seq <plugin> --output <dir>
+esp list-masters <plugin>
+esp merge <source> <target> [--output]
+```
+
+### Papyrus
+```bash
+papyrus status
+papyrus download
+papyrus compile <source> --output <dir> --headers <dir>
+papyrus decompile <pex> --output <dir>
+papyrus validate <psc>
+papyrus generate --name <name> --extends <type> --output <dir>
+```
+
+### Archive
+```bash
+archive info <archive>
+archive list <archive> [--filter] [--limit]
+archive extract <archive> --output <dir>
+archive create <directory> --output <file> [--compress] [--game]
+archive status
+```
+
+### MCM
+```bash
+mcm create <modName> <displayName> --output <file>
+mcm info <config>
+mcm validate <config>
+mcm add-toggle <config> <id> <text> [--help-text]
+mcm add-slider <config> <id> <text> --min --max [--step]
+```
+
+### NIF
+```bash
+nif info <file>
+nif textures <file>
+nif scale <file> <factor> [--output]
+nif copy <file> --output <file>
+```
+
+### Audio
+```bash
+audio info <file>
+audio extract-fuz <fuz> --output <dir>
+audio create-fuz <xwm> [--lip] --output <file>
+audio wav-to-xwm <wav> --output <file>
+```
+
+### SKSE
+```bash
+skse templates
+skse create <name> [--template] [--author] [--output]
+skse info <project>
+skse add-function <project> --name <name> [--return] [--param]
+```
