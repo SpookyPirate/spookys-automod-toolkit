@@ -147,7 +147,9 @@ public class NifService
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            var dir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
             File.Copy(nifPath, outputPath, overwrite: true);
             return Result<string>.Ok(outputPath);
         }

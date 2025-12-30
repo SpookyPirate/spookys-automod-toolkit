@@ -105,7 +105,7 @@ public static class EspCommands
 
             if (json)
             {
-                Console.WriteLine(Result<PluginInfo>.Ok(result.Value!).ToJson(true));
+                Console.WriteLine(result.ToJson(true));
             }
             else if (result.Success && result.Value != null)
             {
@@ -190,16 +190,24 @@ public static class EspCommands
 
             if (json)
             {
-                Console.WriteLine(new
+                if (saveResult.Success)
                 {
-                    success = true,
-                    result = new
+                    Console.WriteLine(new
                     {
-                        editorId = quest.EditorID,
-                        formId = quest.FormKey.ToString(),
-                        name = quest.Name?.String
-                    }
-                }.ToJson());
+                        success = true,
+                        result = new
+                        {
+                            editorId = quest.EditorID,
+                            formId = quest.FormKey.ToString(),
+                            name = quest.Name?.String
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
             }
             else if (saveResult.Success)
             {
@@ -245,8 +253,9 @@ public static class EspCommands
             var magnitude = context.ParseResult.GetValueForOption(magnitudeOption);
             var duration = context.ParseResult.GetValueForOption(durationOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
-            var logger = CreateLogger(json, false);
+            var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
             var loadResult = service.LoadPluginForEdit(plugin);
@@ -310,17 +319,25 @@ public static class EspCommands
             var effectCount = spell.Effects.Count;
             if (json)
             {
-                Console.WriteLine(new
+                if (saveResult.Success)
                 {
-                    success = true,
-                    result = new
+                    Console.WriteLine(new
                     {
-                        editorId = spell.EditorID,
-                        formId = spell.FormKey.ToString(),
-                        name = spell.Name?.String,
-                        effectCount
-                    }
-                }.ToJson());
+                        success = true,
+                        result = new
+                        {
+                            editorId = spell.EditorID,
+                            formId = spell.FormKey.ToString(),
+                            name = spell.Name?.String,
+                            effectCount
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
             }
             else if (saveResult.Success)
             {
@@ -399,16 +416,24 @@ public static class EspCommands
 
             if (json)
             {
-                Console.WriteLine(new
+                if (saveResult.Success)
                 {
-                    success = true,
-                    result = new
+                    Console.WriteLine(new
                     {
-                        editorId = global.EditorID,
-                        formId = global.FormKey.ToString(),
-                        value = globalValue
-                    }
-                }.ToJson());
+                        success = true,
+                        result = new
+                        {
+                            editorId = global.EditorID,
+                            formId = global.FormKey.ToString(),
+                            value = globalValue
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
             }
             else if (saveResult.Success)
             {
@@ -484,15 +509,23 @@ public static class EspCommands
 
             if (json)
             {
-                Console.WriteLine(new
+                if (saveResult.Success)
                 {
-                    success = true,
-                    result = new
+                    Console.WriteLine(new
                     {
-                        quest = questId,
-                        script = scriptName
-                    }
-                }.ToJson());
+                        success = true,
+                        result = new
+                        {
+                            quest = questId,
+                            script = scriptName
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
             }
             else if (saveResult.Success)
             {
@@ -583,8 +616,9 @@ public static class EspCommands
             var weight = context.ParseResult.GetValueForOption(weightOption);
             var model = context.ParseResult.GetValueForOption(modelOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
-            var logger = CreateLogger(json, false);
+            var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
             var loadResult = service.LoadPluginForEdit(plugin);
@@ -629,11 +663,36 @@ public static class EspCommands
             var saveResult = service.SavePlugin(mod, plugin);
 
             if (json)
-                Console.WriteLine(new { success = true, result = new { editorId = weapon.EditorID, formId = weapon.FormKey.ToString(), name = weapon.Name?.String, model = weapon.Model?.File.DataRelativePath } }.ToJson());
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = weapon.EditorID,
+                            formId = weapon.FormKey.ToString(),
+                            name = weapon.Name?.String,
+                            model = weapon.Model?.File.DataRelativePath
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
             else if (saveResult.Success)
+            {
                 Console.WriteLine($"Added weapon: {weapon.EditorID} ({weapon.FormKey})" + (weapon.Model != null ? $" [Model: {weapon.Model.File}]" : " [No model - weapon will be invisible!]"));
+            }
             else
-            { Console.Error.WriteLine($"Error: {saveResult.Error}"); Environment.ExitCode = 1; }
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
         });
 
         return cmd;
@@ -669,8 +728,9 @@ public static class EspCommands
             var value = context.ParseResult.GetValueForOption(valueOption);
             var model = context.ParseResult.GetValueForOption(modelOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
-            var logger = CreateLogger(json, false);
+            var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
             var loadResult = service.LoadPluginForEdit(plugin);
@@ -718,11 +778,36 @@ public static class EspCommands
 
             var hasModel = armor.WorldModel?.Male?.Model?.File != null;
             if (json)
-                Console.WriteLine(new { success = true, result = new { editorId = armor.EditorID, formId = armor.FormKey.ToString(), name = armor.Name?.String, model = armor.WorldModel?.Male?.Model?.File?.DataRelativePath } }.ToJson());
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = armor.EditorID,
+                            formId = armor.FormKey.ToString(),
+                            name = armor.Name?.String,
+                            model = armor.WorldModel?.Male?.Model?.File?.DataRelativePath
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
             else if (saveResult.Success)
+            {
                 Console.WriteLine($"Added armor: {armor.EditorID} ({armor.FormKey})" + (hasModel ? $" [Model: {armor.WorldModel?.Male?.Model?.File}]" : " [No model - armor will be invisible!]"));
+            }
             else
-            { Console.Error.WriteLine($"Error: {saveResult.Error}"); Environment.ExitCode = 1; }
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
         });
 
         return cmd;
@@ -763,11 +848,35 @@ public static class EspCommands
             var saveResult = service.SavePlugin(mod, plugin);
 
             if (json)
-                Console.WriteLine(new { success = true, result = new { editorId = npc.EditorID, formId = npc.FormKey.ToString(), name = npc.Name?.String } }.ToJson());
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = npc.EditorID,
+                            formId = npc.FormKey.ToString(),
+                            name = npc.Name?.String
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
             else if (saveResult.Success)
+            {
                 Console.WriteLine($"Added NPC: {npc.EditorID} ({npc.FormKey})");
+            }
             else
-            { Console.Error.WriteLine($"Error: {saveResult.Error}"); Environment.ExitCode = 1; }
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
         }, pluginArg, editorIdArg, nameOption, levelOption, femaleOption, essentialOption, uniqueOption, _jsonOption);
 
         return cmd;
@@ -807,11 +916,35 @@ public static class EspCommands
             var saveResult = service.SavePlugin(mod, plugin);
 
             if (json)
-                Console.WriteLine(new { success = true, result = new { editorId = book.EditorID, formId = book.FormKey.ToString(), name = book.Name?.String } }.ToJson());
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = book.EditorID,
+                            formId = book.FormKey.ToString(),
+                            name = book.Name?.String
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
             else if (saveResult.Success)
+            {
                 Console.WriteLine($"Added book: {book.EditorID} ({book.FormKey})");
+            }
             else
-            { Console.Error.WriteLine($"Error: {saveResult.Error}"); Environment.ExitCode = 1; }
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
         }, pluginArg, editorIdArg, nameOption, textOption, valueOption, weightOption, _jsonOption, _verboseOption);
 
         return cmd;
@@ -845,8 +978,9 @@ public static class EspCommands
             var effect = context.ParseResult.GetValueForOption(effectOption);
             var bonus = context.ParseResult.GetValueForOption(bonusOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
-            var logger = CreateLogger(json, false);
+            var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
             var loadResult = service.LoadPluginForEdit(plugin);
@@ -887,7 +1021,27 @@ public static class EspCommands
 
             var effectCount = perk.Effects.Count;
             if (json)
-                Console.WriteLine(new { success = true, result = new { editorId = perk.EditorID, formId = perk.FormKey.ToString(), name = perk.Name?.String, effectCount } }.ToJson());
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = perk.EditorID,
+                            formId = perk.FormKey.ToString(),
+                            name = perk.Name?.String,
+                            effectCount
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
             else if (saveResult.Success)
             {
                 var msg = $"Added perk: {perk.EditorID} ({perk.FormKey})";
@@ -898,7 +1052,10 @@ public static class EspCommands
                 Console.WriteLine(msg);
             }
             else
-            { Console.Error.WriteLine($"Error: {saveResult.Error}"); Environment.ExitCode = 1; }
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
         });
 
         return cmd;

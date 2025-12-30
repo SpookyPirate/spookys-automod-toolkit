@@ -19,7 +19,10 @@ public class ToolDownloader
     public ToolDownloader(IModLogger logger, string? toolsDir = null)
     {
         _logger = logger;
-        _httpClient = new HttpClient();
+        _httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(5) // Reasonable timeout for downloads
+        };
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "SpookysAutomod");
 
         // Default tools directory is next to the executable

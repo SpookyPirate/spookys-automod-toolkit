@@ -40,7 +40,9 @@ public class McmService
 
             var json = JsonSerializer.Serialize(config, _jsonOptions);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            var dir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
             File.WriteAllText(outputPath, json);
 
             _logger.Info($"Created MCM config: {outputPath}");
@@ -93,7 +95,9 @@ public class McmService
         {
             var json = JsonSerializer.Serialize(config, _jsonOptions);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            var dir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
             File.WriteAllText(outputPath, json);
 
             return Result<string>.Ok(outputPath);

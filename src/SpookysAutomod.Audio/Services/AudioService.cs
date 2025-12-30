@@ -143,7 +143,9 @@ public class AudioService
             var xwmData = File.ReadAllBytes(xwmPath);
             var lipData = lipPath != null ? File.ReadAllBytes(lipPath) : Array.Empty<byte>();
 
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            var dir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
 
             using var stream = File.Create(outputPath);
             using var writer = new BinaryWriter(stream);
