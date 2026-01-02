@@ -19,6 +19,7 @@ dotnet run --project src/SpookysAutomod.Cli -- <module> <command> [args] [option
 3. **Use suggestions** from error responses to fix issues
 4. **Chain commands** to build complete mods
 5. **Use unique prefixes** for Editor IDs (e.g., `MyMod_`)
+6. **Papyrus compilation requires script headers** - See README section "Papyrus Script Headers" for setup
 
 ---
 
@@ -41,8 +42,8 @@ dotnet run --project src/SpookysAutomod.Cli -- papyrus generate --name "MQM_Main
 
 # 5. Edit the generated script to add your logic
 
-# 6. Compile the script
-dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source" --json
+# 6. Compile the script (requires script headers - see README)
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source" --output "./Scripts" --headers "./skyrim-script-headers" --json
 
 # 7. Attach script to quest
 dotnet run --project src/SpookysAutomod.Cli -- esp attach-script "MyQuestMod.esp" --quest "MQM_MainQuest" --script "MQM_MainQuestScript" --json
@@ -225,7 +226,7 @@ dotnet run --project src/SpookysAutomod.Cli -- papyrus decompile "./Scripts/Brok
 dotnet run --project src/SpookysAutomod.Cli -- papyrus validate "./Debug/BrokenScript.psc"
 
 # 3. Fix and recompile
-dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Debug/BrokenScript.psc" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Debug/BrokenScript.psc" --output "./Scripts" --headers "./skyrim-script-headers"
 ```
 
 ---

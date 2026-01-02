@@ -69,20 +69,32 @@ papyrus compile <source> --output <dir> --headers <dir> [options]
 | `--optimize`, `-O` | true | Enable optimization |
 
 **Headers Path:**
-The headers directory should contain vanilla Skyrim script sources. Typically found at:
+The headers directory should contain vanilla Skyrim script sources (.psc files).
+
+**Recommended:** Use the toolkit's dedicated headers directory:
+```bash
+--headers "./skyrim-script-headers"
+```
+
+See the main README "Papyrus Script Headers" section for installation instructions.
+
+**Alternative:** Reference Creation Kit directly:
 - Steam: `Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source`
-- With CK: `Steam/steamapps/common/Skyrim Special Edition/Data/Source/Scripts`
+- GOG: `GOG Galaxy/Games/Skyrim Special Edition/Data/Scripts/Source`
 
 **Examples:**
 ```bash
-# Compile single file
-papyrus compile "./Scripts/Source/MyScript.psc" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+# Compile single file (using toolkit headers)
+papyrus compile "./Scripts/Source/MyScript.psc" --output "./Scripts" --headers "./skyrim-script-headers"
 
-# Compile directory
-papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+# Compile directory (using toolkit headers)
+papyrus compile "./Scripts/Source" --output "./Scripts" --headers "./skyrim-script-headers"
 
 # Without optimization
-papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source" --optimize false
+papyrus compile "./Scripts/Source" --output "./Scripts" --headers "./skyrim-script-headers" --optimize false
+
+# Using Creation Kit headers directly
+papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source"
 ```
 
 ---
@@ -214,7 +226,7 @@ papyrus generate --name "MyMod_QuestScript" --extends Quest --output "./Scripts/
 papyrus validate "./Scripts/Source/MyMod_QuestScript.psc"
 
 # 4. Compile
-papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+papyrus compile "./Scripts/Source" --output "./Scripts" --headers "./skyrim-script-headers"
 
 # 5. Attach to quest
 esp attach-script "MyMod.esp" --quest "MyMod_MainQuest" --script "MyMod_QuestScript"

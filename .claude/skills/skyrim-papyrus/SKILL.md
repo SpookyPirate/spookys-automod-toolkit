@@ -50,9 +50,20 @@ dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "<source>" --outp
 | `--headers`, `-i` | Directory containing script headers |
 | `--optimize` | Enable optimization (default: true) |
 
-**Headers Path Examples:**
-- Steam: `Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source`
-- With CK: `Steam/steamapps/common/Skyrim Special Edition/Data/Source/Scripts`
+**Headers Path:**
+
+**IMPORTANT:** Script compilation requires Papyrus script headers (.psc files) from the Creation Kit.
+
+**Recommended approach:**
+1. Copy headers to toolkit directory: `./skyrim-script-headers/`
+2. Use `--headers "./skyrim-script-headers"` in compile commands
+3. See main README "Papyrus Script Headers" section for setup instructions
+
+**Alternative:** Reference Creation Kit directly:
+- Steam: `C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source`
+- GOG: `C:/GOG Galaxy/Games/Skyrim Special Edition/Data/Scripts/Source`
+
+**If headers are missing, compilation will fail with "invalid type" errors.**
 
 ### Decompile Scripts
 ```bash
@@ -102,7 +113,7 @@ dotnet run --project src/SpookysAutomod.Cli -- papyrus generate --name "MyMod_Qu
 dotnet run --project src/SpookysAutomod.Cli -- papyrus validate "./Scripts/Source/MyMod_QuestScript.psc"
 
 # 4. Compile to PEX
-dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source" --output "./Scripts" --headers "./skyrim-script-headers"
 
 # 5. Attach to quest in plugin
 dotnet run --project src/SpookysAutomod.Cli -- esp attach-script "MyMod.esp" --quest "MyMod_MainQuest" --script "MyMod_QuestScript"
@@ -125,7 +136,7 @@ dotnet run --project src/SpookysAutomod.Cli -- papyrus decompile "./Scripts" --o
 dotnet run --project src/SpookysAutomod.Cli -- papyrus generate --name "MyMod_FireEffect" --extends ActiveMagicEffect --output "./Scripts/Source" --description "Fire damage over time effect"
 
 # 2. Compile
-dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source/MyMod_FireEffect.psc" --output "./Scripts" --headers "C:/Skyrim/Data/Scripts/Source"
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source/MyMod_FireEffect.psc" --output "./Scripts" --headers "./skyrim-script-headers"
 ```
 
 ## Script Template Examples
@@ -183,8 +194,11 @@ EndEvent
 
 ### Common Compilation Errors
 
-**"Missing header files":**
-- Verify headers path points to vanilla Scripts/Source
+**"Missing header files" or "invalid type in property declaration":**
+- Script headers are NOT included with the toolkit (Bethesda copyright)
+- You must install them manually - see README "Papyrus Script Headers" section
+- Verify headers path points to `./skyrim-script-headers` or Creation Kit location
+- Headers must contain files like `Actor.psc`, `Game.psc`, `Quest.psc`, etc.
 - Run `papyrus status` to check tool availability
 
 **"Script extends unknown type":**
@@ -207,9 +221,9 @@ EndEvent
 
 ## Important Notes
 
-1. **Scripts/Source vs Scripts** - Source (.psc) goes in Source folder, compiled (.pex) in Scripts
-2. **Property linking** - Properties defined in scripts must be filled in Creation Kit
-3. **Vanilla headers required** - Compilation needs vanilla script sources as imports
+1. **Headers MUST be installed** - Papyrus compilation will FAIL without script headers. See README for setup.
+2. **Scripts/Source vs Scripts** - Source (.psc) goes in Source folder, compiled (.pex) in Scripts
+3. **Property linking** - Properties defined in scripts must be filled in Creation Kit
 4. **Case insensitivity** - Papyrus identifiers are case-insensitive
 5. **Use `--json` flag** for machine-readable output when scripting
 
