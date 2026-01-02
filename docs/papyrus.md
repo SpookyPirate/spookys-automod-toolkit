@@ -6,10 +6,12 @@ The Papyrus module handles script compilation, decompilation, validation, and te
 
 This module uses external tools that are auto-downloaded on first use:
 
-| Tool | Purpose |
-|------|---------|
-| papyrus-compiler | Compiles PSC to PEX |
-| Champollion | Decompiles PEX to PSC |
+| Tool | Purpose | Source |
+|------|---------|--------|
+| papyrus-compiler | Compiles PSC to PEX | [russo-2025/papyrus-compiler](https://github.com/russo-2025/papyrus-compiler) (modern, faster compiler) |
+| Champollion | Decompiles PEX to PSC | Community decompiler |
+
+**Note:** The toolkit uses russo-2025's modern Papyrus compiler, which is faster and more reliable than Bethesda's original compiler.
 
 ## Commands
 

@@ -17,10 +17,12 @@ cd "C:\Users\spook\Desktop\Projects\3. Development\skyrim-mods\spookys-automod-t
 ## External Tools
 
 Tools are auto-downloaded on first use:
-| Tool | Purpose |
-|------|---------|
-| papyrus-compiler | Compiles PSC to PEX |
-| Champollion | Decompiles PEX to PSC |
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| papyrus-compiler | Compiles PSC to PEX | Uses [russo-2025/papyrus-compiler](https://github.com/russo-2025/papyrus-compiler) (modern, faster) |
+| Champollion | Decompiles PEX to PSC | Community decompiler |
+
+**Important:** The toolkit uses russo-2025's modern compiler, NOT Bethesda's original PapyrusCompiler.exe.
 
 Check tool status:
 ```bash
@@ -194,12 +196,20 @@ EndEvent
 
 ### Common Compilation Errors
 
-**"Missing header files" or "invalid type in property declaration":**
+**"Compilation failed" with no details:**
+- The toolkit now shows detailed compiler output when compilation fails
+- If you see this without details, it's a bug - report it with the command you ran
+
+**"Missing header files", "invalid type", or "unknown type":**
 - Script headers are NOT included with the toolkit (Bethesda copyright)
 - You must install them manually - see README "Papyrus Script Headers" section
 - Verify headers path points to `./skyrim-script-headers` or Creation Kit location
 - Headers must contain files like `Actor.psc`, `Game.psc`, `Quest.psc`, etc.
-- Run `papyrus status` to check tool availability
+- Without headers, the compiler cannot understand base types and will fail
+
+**Compiler not found:**
+- Run `papyrus status` to check if compiler is installed
+- Run `papyrus download` to install the compiler if missing
 
 **"Script extends unknown type":**
 - Ensure base type is spelled correctly

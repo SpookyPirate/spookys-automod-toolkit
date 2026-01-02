@@ -28,6 +28,10 @@ tools/
 
 # Papyrus script headers (copyrighted by Bethesda - user must provide)
 skyrim-script-headers/*.psc
+skyrim-script-headers/*.flg
+
+# Papyrus compiler cache
+.papyrus/
 
 # OS
 .DS_Store

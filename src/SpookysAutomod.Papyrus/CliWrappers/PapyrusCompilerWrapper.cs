@@ -124,10 +124,11 @@ public class PapyrusCompilerWrapper : ICliWrapper
 
         if (!result.Success)
         {
+            var errorOutput = result.ErrorContext ?? result.Error ?? "Unknown compilation error";
             return Result<CompileResult>.Fail(
                 "Compilation failed",
-                result.Value,
-                ParseCompilerSuggestions(result.Value));
+                errorOutput,
+                ParseCompilerSuggestions(errorOutput));
         }
 
         // Parse output to count compiled files
@@ -203,19 +204,40 @@ public class PapyrusCompilerWrapper : ICliWrapper
 
         var suggestions = new List<string>();
 
-        if (output.Contains("not found", StringComparison.OrdinalIgnoreCase))
-            suggestions.Add("Check that the source file exists");
+        // Check for common error patterns
+        if (output.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("unable to locate", StringComparison.OrdinalIgnoreCase))
+        {
+            suggestions.Add("Check that the source file exists and path is correct");
+        }
 
-        if (output.Contains("syntax error", StringComparison.OrdinalIgnoreCase))
+        if (output.Contains("syntax error", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("parse error", StringComparison.OrdinalIgnoreCase))
+        {
             suggestions.Add("Review the script for syntax errors");
+        }
 
-        if (output.Contains("undefined", StringComparison.OrdinalIgnoreCase))
-            suggestions.Add("Ensure all referenced scripts/properties are defined");
+        if (output.Contains("undefined", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("unknown type", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("invalid type", StringComparison.OrdinalIgnoreCase))
+        {
+            suggestions.Add("Missing script headers - install Skyrim script headers (see README 'Papyrus Script Headers' section)");
+            suggestions.Add("Ensure headers directory contains Actor.psc, Game.psc, Quest.psc, etc.");
+        }
 
         if (output.Contains("import", StringComparison.OrdinalIgnoreCase))
-            suggestions.Add("Check that the headers directory contains required scripts");
+        {
+            suggestions.Add("Check that the headers directory path is correct");
+        }
 
-        return suggestions.Count > 0 ? suggestions : null;
+        // If no specific suggestions found but compilation failed
+        if (suggestions.Count == 0)
+        {
+            suggestions.Add("Run 'papyrus status' to verify compiler is installed");
+            suggestions.Add("Check that headers directory contains Skyrim script headers");
+        }
+
+        return suggestions;
     }
 }
 
