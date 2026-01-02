@@ -60,6 +60,60 @@ dotnet run --project src/SpookysAutomod.Cli -- --help
 
 ---
 
+## Papyrus Script Headers (Required for Compilation)
+
+If you plan to compile Papyrus scripts, you'll need the script headers from the Creation Kit.
+
+### What Are Script Headers?
+
+Script headers (`.psc` files) define the base types used by Papyrus scripts, such as `Actor`, `Game`, `Quest`, `GlobalVariable`, etc. Without these headers, the Papyrus compiler cannot understand script code and will fail with "invalid type" errors.
+
+### Where to Get Them
+
+**DO NOT download headers from the internet** - they are copyrighted by Bethesda.
+
+You must obtain them from your own Creation Kit installation:
+
+1. **Download Creation Kit:**
+   - Skyrim SE: Available on Steam (Tools section)
+   - Skyrim VR: Use Skyrim SE Creation Kit
+
+2. **Locate Headers:**
+   - Navigate to: `<Creation Kit Install>/Data/Scripts/Source/`
+   - You'll find files like `Actor.psc`, `Game.psc`, `Quest.psc`, etc.
+
+### Installation
+
+**Option A: Copy to toolkit directory (Recommended)**
+
+Copy all `.psc` files from Creation Kit to the toolkit's headers directory:
+
+```bash
+# Windows PowerShell
+Copy-Item "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data\Scripts\Source\*.psc" `
+  ".\skyrim-script-headers\"
+
+# Git Bash / WSL
+cp "/c/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source/"*.psc \
+  ./skyrim-script-headers/
+```
+
+**Option B: Use Creation Kit path directly**
+
+You can also reference the Creation Kit headers directly using the `--headers` flag:
+
+```bash
+papyrus compile "./Scripts" --headers "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source"
+```
+
+### Important Notes
+
+- **VR vs SE:** If targeting Skyrim VR, use headers from the VR-compatible Creation Kit
+- **Copyright:** DO NOT commit `.psc` headers to version control - they are Bethesda's intellectual property
+- **Git Ignore:** The `.gitignore` file already excludes `skyrim-script-headers/*.psc`
+
+---
+
 ## Quick Start
 
 ### Create a Plugin

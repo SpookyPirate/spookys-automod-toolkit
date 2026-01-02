@@ -26,6 +26,9 @@ packages/
 # Tools (auto-downloaded)
 tools/
 
+# Papyrus script headers (copyrighted by Bethesda - user must provide)
+skyrim-script-headers/*.psc
+
 # OS
 .DS_Store
 Thumbs.db
