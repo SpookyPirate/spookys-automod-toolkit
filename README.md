@@ -172,13 +172,31 @@ Copy `MyMod.esp` to your Skyrim `Data` folder and enable it in your mod manager.
 
 ## Using with AI
 
-Tell your AI assistant about the toolkit location, then make requests:
+### Quick Setup
+
+To get any AI assistant (ChatGPT, Claude, etc.) ready to use the toolkit:
+
+1. **Copy the initialization prompt:** See [LLM Init Prompt](docs/llm-init-prompt.md)
+2. **Paste it into your AI chat**
+3. **Provide the toolkit path**
+4. **Start making requests!**
+
+The initialization prompt gives the AI all essential context in ~200 lines, including:
+- Critical principles (--json flag, headers, models, effects)
+- Common gotchas and what to avoid
+- Quick reference for common tasks
+- Error handling guidance
+
+**Example request:**
 
 **You:** "Create a mod with a set of thief armor and a matching dagger"
 
 The AI will run the appropriate commands to create the plugin and add the records.
 
-See the [LLM Guide](docs/llm-guide.md) for detailed patterns and examples.
+### Documentation
+
+- **[LLM Init Prompt](docs/llm-init-prompt.md)** - Quick onboarding (copy & paste this!)
+- **[LLM Guide](docs/llm-guide.md)** - Comprehensive patterns and examples
 
 ---
 
