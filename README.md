@@ -112,6 +112,24 @@ papyrus compile "./Scripts" --headers "C:/Program Files (x86)/Steam/steamapps/co
 - **Copyright:** DO NOT commit `.psc` headers to version control - they are Bethesda's intellectual property
 - **Git Ignore:** The `.gitignore` file already excludes `skyrim-script-headers/*.psc`
 
+### Advanced: SKSE and SkyUI Headers
+
+For compiling mods that use **SKSE** (Skyrim Script Extender) or **SkyUI** (MCM menus), additional headers are required:
+
+**SKSE Headers:**
+- Required for: Mods using SKSE functions (`GetDisplayName`, `RegisterForMenu`, `StringUtil`, etc.)
+- Download: https://skse.silverlock.org/ (get the SDK package)
+- Install to: `tools/papyrus-compiler/headers/skse/`
+- Extract `Scripts/Source/` contents to this directory
+
+**SkyUI Headers:**
+- Required for: Mods with MCM (Mod Configuration Menu)
+- Download: https://github.com/schlangster/skyui/wiki or Nexus Mods
+- Install to: `tools/papyrus-compiler/headers/skyui/`
+- Copy MCM scripts (`SKI_ConfigBase.psc`, etc.) to this directory
+
+The compiler automatically detects and uses these headers when present. See `tools/papyrus-compiler/headers/README.md` for detailed setup instructions.
+
 ---
 
 ## Quick Start
