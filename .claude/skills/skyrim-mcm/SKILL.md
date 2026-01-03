@@ -11,7 +11,8 @@ Create and edit MCM Helper configuration files for in-game mod settings menus us
 
 Run all commands from the toolkit directory:
 ```bash
-cd "C:\Users\spook\Desktop\Projects\3. Development\skyrim-mods\spookys-automod-toolkit"
+cd "<TOOLKIT_PATH>"
+# Example: cd "C:\Tools\spookys-automod-toolkit"
 ```
 
 ## Overview

@@ -11,7 +11,8 @@ Create and manage SKSE (Skyrim Script Extender) C++ plugin projects using Spooky
 
 Run all commands from the toolkit directory:
 ```bash
-cd "C:\Users\spook\Desktop\Projects\3. Development\skyrim-mods\spookys-automod-toolkit"
+cd "<TOOLKIT_PATH>"
+# Example: cd "C:\Tools\spookys-automod-toolkit"
 ```
 
 ### Build Requirements

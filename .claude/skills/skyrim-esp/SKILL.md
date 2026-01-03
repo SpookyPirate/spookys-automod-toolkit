@@ -11,7 +11,8 @@ Create, inspect, and modify Skyrim plugin files using the ESP module of Spooky's
 
 Run all commands from the toolkit directory:
 ```bash
-cd "C:\Users\spook\Desktop\Projects\3. Development\skyrim-mods\spookys-automod-toolkit"
+cd "<TOOLKIT_PATH>"
+# Example: cd "C:\Tools\spookys-automod-toolkit"
 ```
 
 ## Command Reference

@@ -11,7 +11,8 @@ Read and manipulate NIF (NetImmerse Format) 3D mesh files using Spooky's AutoMod
 
 Run all commands from the toolkit directory:
 ```bash
-cd "C:\Users\spook\Desktop\Projects\3. Development\skyrim-mods\spookys-automod-toolkit"
+cd "<TOOLKIT_PATH>"
+# Example: cd "C:\Tools\spookys-automod-toolkit"
 ```
 
 ## Overview
