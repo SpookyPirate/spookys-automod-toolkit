@@ -112,17 +112,18 @@ public class ChampollionWrapper : ICliWrapper
         // Build arguments
         var args = new StringBuilder();
         args.Append($"\"{pexPath}\"");
-        args.Append($" -o \"{outputDir}\"");
-        args.Append(" -p");  // Output to stdout also
+        args.Append($" --psc \"{outputDir}\"");  // Output directory for PSC files
 
         _logger.Info($"Decompiling: {pexPath}");
         var result = await RunAsync(args.ToString());
 
         if (!result.Success)
         {
+            var errorOutput = result.ErrorContext ?? result.Error ?? "Unknown decompilation error";
             return Result<DecompileResult>.Fail(
                 "Decompilation failed",
-                result.Value);
+                errorOutput,
+                ParseDecompilerSuggestions(errorOutput));
         }
 
         // Find output file
@@ -231,6 +232,42 @@ public class ChampollionWrapper : ICliWrapper
         {
             return Result<string>.Fail($"Failed to run decompiler: {ex.Message}");
         }
+    }
+
+    private static List<string>? ParseDecompilerSuggestions(string? output)
+    {
+        if (string.IsNullOrEmpty(output)) return null;
+
+        var suggestions = new List<string>();
+
+        if (output.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("unable to locate", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("no such file", StringComparison.OrdinalIgnoreCase))
+        {
+            suggestions.Add("Check that the PEX file exists and path is correct");
+        }
+
+        if (output.Contains("corrupted", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("malformed", StringComparison.OrdinalIgnoreCase))
+        {
+            suggestions.Add("PEX file may be corrupted or from an incompatible game version");
+        }
+
+        if (output.Contains("unrecognised option", StringComparison.OrdinalIgnoreCase) ||
+            output.Contains("unknown option", StringComparison.OrdinalIgnoreCase))
+        {
+            suggestions.Add("Internal error: Invalid command-line arguments passed to Champollion");
+            suggestions.Add("Please report this issue to the toolkit developers");
+        }
+
+        if (suggestions.Count == 0)
+        {
+            suggestions.Add("Run 'papyrus status' to verify decompiler is installed");
+            suggestions.Add("Check that the PEX file is valid and not encrypted/obfuscated");
+        }
+
+        return suggestions;
     }
 }
 
