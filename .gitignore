@@ -36,3 +36,6 @@ skyrim-script-headers/*.flg
 # OS
 .DS_Store
 Thumbs.db
+
+#Other
+spookys-automod-toolkit.code-workspace
