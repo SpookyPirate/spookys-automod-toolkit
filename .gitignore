@@ -38,8 +38,12 @@ skyrim-script-headers/*.flg
 Thumbs.db
 
 # Claude context (personal/local context files)
+claude.md
 CLAUDE.md
-tmpclaude*
+tmpclaude-*
 
-#Other
-spookys-automod-toolkit.code-workspacetmpclaude-*
+# Claude Code skills (included in releases only, not source code)
+.claude/
+
+# Other
+spookys-automod-toolkit.code-workspace
