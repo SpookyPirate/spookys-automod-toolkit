@@ -37,5 +37,8 @@ skyrim-script-headers/*.flg
 .DS_Store
 Thumbs.db
 
+# Claude context (personal/local context files)
+CLAUDE.md
+
 #Other
 spookys-automod-toolkit.code-workspace
