@@ -86,9 +86,11 @@ You must obtain them from your own Creation Kit installation:
 
 **Option A: Copy to toolkit directory (Recommended)**
 
-Copy all `.psc` files from Creation Kit to the toolkit's headers directory:
+Copy all `.psc` files from Creation Kit to the toolkit's `skyrim-script-headers/` directory (in the toolkit root folder):
 
 ```bash
+# From the toolkit root directory (spookys-automod-toolkit/)
+
 # Windows PowerShell
 Copy-Item "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data\Scripts\Source\*.psc" `
   ".\skyrim-script-headers\"
@@ -97,6 +99,8 @@ Copy-Item "C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\
 cp "/c/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data/Scripts/Source/"*.psc \
   ./skyrim-script-headers/
 ```
+
+This will place the headers in: `spookys-automod-toolkit/skyrim-script-headers/*.psc`
 
 **Option B: Use Creation Kit path directly**
 
@@ -108,9 +112,11 @@ papyrus compile "./Scripts" --headers "C:/Program Files (x86)/Steam/steamapps/co
 
 ### Important Notes
 
+- **Directory Location:** The `skyrim-script-headers/` directory is in the toolkit root (same level as `src/`, `docs/`, etc.)
+- **Empty by Default:** The directory exists but contains no `.psc` files - you must copy them from Creation Kit
 - **VR vs SE:** If targeting Skyrim VR, use headers from the VR-compatible Creation Kit
 - **Copyright:** DO NOT commit `.psc` headers to version control - they are Bethesda's intellectual property
-- **Git Ignore:** The `.gitignore` file already excludes `skyrim-script-headers/*.psc`
+- **Git Ignore:** The `.gitignore` file already excludes `skyrim-script-headers/*.psc` to prevent accidental commits
 
 ### Advanced: SKSE and SkyUI Headers
 
