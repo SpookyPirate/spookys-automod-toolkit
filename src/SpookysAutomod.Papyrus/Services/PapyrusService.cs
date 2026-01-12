@@ -68,7 +68,7 @@ public class PapyrusService
         string headersDir,
         bool optimize = true)
     {
-        return await _compiler.CompileAsync(source, outputDir, headersDir, optimize);
+        return await _compiler.CompileAsync(source, outputDir, headersDir, null, optimize);
     }
 
     /// <summary>

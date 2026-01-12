@@ -39,6 +39,7 @@ Thumbs.db
 
 # Claude context (personal/local context files)
 CLAUDE.md
+tmpclaude*
 
 #Other
-spookys-automod-toolkit.code-workspace
+spookys-automod-toolkit.code-workspacetmpclaude-*

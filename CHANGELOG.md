@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Critical:** Fixed PapyrusService.CompileAsync() parameter mismatch causing compilation errors
+  - Was passing `optimize` (bool) to position 4, which expects `additionalImports` (List<string>?)
+  - Now correctly passes `null` for additionalImports parameter
+  - Prevented the toolkit from compiling at all
+
 ## [1.4.0] - 2026-01-03
 
 ### Fixed
