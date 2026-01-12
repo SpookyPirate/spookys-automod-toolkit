@@ -55,10 +55,17 @@ $excludePatterns = @(
     "tools",
     "skyrim-script-headers",
     "scripts",
-    "*.code-workspace"
+    "*.code-workspace",
+    ".claude",
+    "claude.md",
+    "CLAUDE.md",
+    "tmpclaude-*"
 )
 
-Get-ChildItem -Path . -Exclude $excludePatterns | ForEach-Object {
+Get-ChildItem -Path . | Where-Object {
+    $item = $_
+    -not ($excludePatterns | Where-Object { $item.Name -like $_ })
+} | ForEach-Object {
     Copy-Item $_.FullName -Destination $toolkitDir -Recurse -Force
 }
 

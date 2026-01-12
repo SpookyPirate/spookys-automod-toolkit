@@ -53,7 +53,11 @@ rsync -av --progress . "$TOOLKIT_DIR" \
     --exclude 'tools' \
     --exclude 'skyrim-script-headers' \
     --exclude 'scripts' \
-    --exclude '*.code-workspace'
+    --exclude '*.code-workspace' \
+    --exclude '.claude' \
+    --exclude 'claude.md' \
+    --exclude 'CLAUDE.md' \
+    --exclude 'tmpclaude-*'
 
 # Copy .claude skills to release root
 echo "Copying Claude Code skills..."
