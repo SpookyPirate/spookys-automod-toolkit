@@ -7,11 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-01-12
+
 ### Fixed
 - **Critical:** Fixed PapyrusService.CompileAsync() parameter mismatch causing compilation errors
   - Was passing `optimize` (bool) to position 4, which expects `additionalImports` (List<string>?)
   - Now correctly passes `null` for additionalImports parameter
   - Prevented the toolkit from compiling at all
+
+### Changed
+- Separated `.claude` skills from source repository
+  - Skills now packaged with releases for end users
+  - Clean source repository for developers
+  - Releases have proper structure for Claude Code auto-detection
+
+### Added
+- Release build scripts (PowerShell and Bash) for automated packaging
+- Scripts documentation in `scripts/README.md`
 
 ## [1.4.0] - 2026-01-03
 
@@ -87,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Process game audio files
 - Generate SKSE plugin projects
 
-[unreleased]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.4.0...HEAD
+[unreleased]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.1.0...v1.2.0
