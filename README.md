@@ -138,6 +138,92 @@ The compiler automatically detects and uses these headers when present. See `too
 
 ---
 
+## SKSE C++ Build Tools (Required for SKSE Plugin Development)
+
+If you plan to create SKSE (Skyrim Script Extender) native plugins, you'll need C++ build tools.
+
+### What Are SKSE Plugins?
+
+SKSE plugins are DLL files written in C++ that extend Skyrim's functionality at a native level. They can add new Papyrus functions, hook game events, and access internal game data that scripts cannot.
+
+### Build Requirements
+
+Building SKSE plugins requires two tools:
+
+1. **CMake** - Build system generator
+2. **MSVC Build Tools** - Microsoft C++ compiler (no Visual Studio IDE needed)
+
+### Installation
+
+**Step 1: Install CMake**
+
+1. Download CMake from: https://cmake.org/download/
+2. Get the Windows x64 Installer (e.g., `cmake-3.28.0-windows-x86_64.msi`)
+3. During installation, select **"Add CMake to the system PATH for all users"**
+4. Verify installation:
+   ```bash
+   cmake --version
+   ```
+
+**Step 2: Install MSVC Build Tools**
+
+1. Download from: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022
+2. Scroll down to "Tools for Visual Studio" → "Build Tools for Visual Studio 2022"
+3. Run the installer (`vs_BuildTools.exe`)
+4. In the installer, select **"Desktop development with C++"** workload
+5. This includes:
+   - MSVC C++ compiler
+   - Windows SDK
+   - CMake integration
+6. Click "Install" (requires ~7 GB disk space)
+7. Verify installation:
+   ```bash
+   # Open a new command prompt
+   cl
+   # Should show: "Microsoft (R) C/C++ Optimizing Compiler"
+   ```
+
+### Important Notes
+
+- **No IDE Required:** You do NOT need Visual Studio IDE - just the Build Tools
+- **PATH Configuration:** Build Tools should automatically add `cl.exe` to PATH
+- **First Build:** The first build will download vcpkg dependencies (CommonLibSSE-NG) - this takes a few minutes
+- **Target Versions:** Generated plugins work on Skyrim SE, AE, GOG, and VR from a single DLL
+
+### Building an SKSE Plugin
+
+Once tools are installed, the complete workflow is:
+
+```bash
+# 1. Generate project
+dotnet run --project src/SpookysAutomod.Cli -- skse create "MyPlugin" --template basic --output "./"
+
+# 2. Configure with CMake
+cd MyPlugin
+cmake -B build -S .
+
+# 3. Build
+cmake --build build --config Release
+
+# 4. Output DLL
+# Result: build/Release/MyPlugin.dll
+```
+
+### Troubleshooting
+
+**"cmake: command not found"**
+- Restart your terminal after CMake installation
+- Or manually add to PATH: `C:\Program Files\CMake\bin`
+
+**"'cl' is not recognized"**
+- Open "x64 Native Tools Command Prompt for VS 2022" (installed with Build Tools)
+- Or run: `"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"`
+
+**"Cannot open include file 'windows.h'"**
+- Reinstall Build Tools and ensure "Windows SDK" is selected
+
+---
+
 ## Quick Start
 
 ### Create a Plugin
@@ -353,6 +439,8 @@ papyrus compile "./Debug/Source" --output "./Debug/Scripts" --headers "C:/Skyrim
 | Books     | Custom text, lore, journals                |
 | Quests    | Quest framework for scripted content       |
 | Globals   | Configuration variables                    |
+| Factions  | Tracking groups, crime factions            |
+| Quest Aliases | Reference containers with scripts      |
 | Spells    | Damage, heal, buff spells (use `--effect`) |
 | Perks     | Combat, magic, stealth perks (`--effect`)  |
 | MCM Menus | Mod configuration menus                    |
@@ -394,15 +482,21 @@ However, you can reference any existing vanilla model with `--model`.
 ```bash
 esp create "ModName" --light --author "Name"
 esp info "Mod.esp"
+esp analyze "Mod.esp"  # Detailed analysis with scripts and aliases
 esp add-quest "Mod.esp" "QuestID" --name "Quest Name" --start-enabled
 esp add-spell "Mod.esp" "SpellID" --name "Spell Name" --type spell
 esp add-global "Mod.esp" "GlobalID" --type int --value 1
+esp add-faction "Mod.esp" "FactionID" --name "Faction Name"
 esp add-weapon "Mod.esp" "WeaponID" --name "Name" --type sword --damage 20 --model iron-sword
 esp add-armor "Mod.esp" "ArmorID" --name "Name" --type light --slot body --rating 30 --model iron-cuirass
 esp add-npc "Mod.esp" "NPCID" --name "Name" --level 20 --essential
 esp add-book "Mod.esp" "BookID" --name "Name" --text "Content..."
 esp add-perk "Mod.esp" "PerkID" --name "Name" --description "Effect" --playable
+esp add-alias "Mod.esp" --quest "QuestID" --name "AliasName" --script "ScriptName"
 esp attach-script "Mod.esp" --quest "QuestID" --script "ScriptName"
+esp attach-alias-script "Mod.esp" --quest "QuestID" --alias "AliasName" --script "ScriptName"
+esp set-property "Mod.esp" --quest "QuestID" --script "ScriptName" --property "PropName" --value "Value" --type object
+esp auto-fill "Mod.esp" --quest "QuestID" --mod-folder "./mod" --data-folder "C:/Skyrim/Data"
 esp generate-seq "Mod.esp" --output "./"
 esp merge "Source.esp" "Target.esp" --output "Merged.esp"
 esp list-masters "Mod.esp"
@@ -453,6 +547,8 @@ skse info "./ProjectFolder"
 | Quest  | `--name`, `--priority`, `--start-enabled`, `--run-once`          |
 | Spell  | `--name`, `--type`, `--cast-type`, `--target-type`               |
 | Global | `--type` (short/long/float), `--value`                           |
+| Faction | `--name`, `--hidden`, `--track-crime`                           |
+| Alias  | `--quest`, `--name`, `--script`, `--flags`                       |
 | Weapon | `--name`, `--type`, `--damage`, `--value`, `--weight`, `--model` |
 | Armor  | `--name`, `--type`, `--slot`, `--rating`, `--value`, `--model`   |
 | NPC    | `--name`, `--level`, `--female`, `--essential`, `--unique`       |

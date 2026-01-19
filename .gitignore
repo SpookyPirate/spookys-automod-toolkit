@@ -47,3 +47,8 @@ tmpclaude-*
 
 # Other
 spookys-automod-toolkit.code-workspace
+temp/
+
+# Keeping private for now
+CONTRIBUTING.md
+ENHANCEMENTS.md

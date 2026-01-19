@@ -6,7 +6,7 @@ This guide is specifically designed for LLMs to understand how to use the toolki
 
 ```bash
 # All commands start from toolkit directory
-cd "C:\Users\spook\Desktop\Projects\3. Development\skyrim-mods\spookys-automod-toolkit"
+cd "C:\Tools\spookys-automod-toolkit"
 
 # All commands use this format
 dotnet run --project src/SpookysAutomod.Cli -- <module> <command> [args] [options]
@@ -56,7 +56,65 @@ dotnet run --project src/SpookysAutomod.Cli -- mcm create "MyQuestMod" "My Quest
 dotnet run --project src/SpookysAutomod.Cli -- mcm add-toggle "./MCM/config/MyQuestMod/config.json" "bEnabled" "Enable Mod" --help-text "Toggle the mod on/off" --json
 ```
 
-### Pattern 2: Create Weapons and Armor Mod
+### Pattern 2: Create Quest with Aliases and Scripts
+
+Quest aliases are containers that can hold references to actors, objects, or locations. This pattern is used for follower systems, dynamic NPC tracking, and scripted quest objectives.
+
+```bash
+# 1. Create ESL-flagged plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "FollowerMod.esp" --light --author "LLM" --json
+
+# 2. Add global configuration variables
+dotnet run --project src/SpookysAutomod.Cli -- esp add-global "FollowerMod.esp" FM_Enabled --value 1 --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-global "FollowerMod.esp" FM_MaxFollowers --value 5 --json
+
+# 3. Add factions for tracking
+dotnet run --project src/SpookysAutomod.Cli -- esp add-faction "FollowerMod.esp" FM_TrackingFaction --name "Tracking Faction" --json
+
+# 4. Add main quest with start-enabled flag
+dotnet run --project src/SpookysAutomod.Cli -- esp add-quest "FollowerMod.esp" FM_MainQuest --name "Follower System" --start-enabled --run-once --json
+
+# 5. Attach main script to quest
+dotnet run --project src/SpookysAutomod.Cli -- esp attach-script "FollowerMod.esp" --quest FM_MainQuest --script FM_MainQuestScript --json
+
+# 6. Add follower aliases with scripts attached
+dotnet run --project src/SpookysAutomod.Cli -- esp add-alias "FollowerMod.esp" --quest FM_MainQuest --name FollowerAlias01 --script FM_FollowerAliasScript --flags "Optional,AllowReuseInQuest,AllowReserved" --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-alias "FollowerMod.esp" --quest FM_MainQuest --name FollowerAlias02 --script FM_FollowerAliasScript --flags "Optional,AllowReuseInQuest,AllowReserved" --json
+
+# 7. Set script properties on quest script
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "FollowerMod.esp" --quest FM_MainQuest --script FM_MainQuestScript --property ModEnabled --value "FollowerMod.esp|0x800" --type object --json
+
+# 8. Auto-fill properties from Skyrim.esm (RECOMMENDED for vanilla references)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "FollowerMod.esp" --quest FM_MainQuest --mod-folder "path/to/mod" --data-folder "path/to/Skyrim/Data" --json
+
+# 9. Generate SEQ file
+dotnet run --project src/SpookysAutomod.Cli -- esp generate-seq "FollowerMod.esp" --output "./" --json
+
+# 10. Verify with analyze
+dotnet run --project src/SpookysAutomod.Cli -- esp analyze "FollowerMod.esp" --json
+```
+
+**Understanding Quest Aliases:**
+
+| Concept | Description |
+|---------|-------------|
+| **Quest Alias** | A slot in a quest that can hold a reference (actor, object, location) |
+| **Alias Script** | Script attached to alias, monitors/affects whatever fills that alias |
+| **Alias Flags** | `Optional` (doesn't need filling), `AllowReuseInQuest` (same ref can fill multiple), `AllowReserved` |
+| **Fill Type** | How the alias gets filled - typically via script (`ForceRefTo()`) for dynamic systems |
+
+**Common Alias Flags:**
+
+- `Optional` - Alias doesn't need to be filled for quest to work
+- `AllowReuseInQuest` - Same reference can fill multiple aliases
+- `AllowReserved` - Allow reserved state
+- `AllowDead` - Allow dead actors
+- `Essential` - Make the alias reference essential
+- `QuestObject` - Mark as quest object
+
+Combine flags with commas: `--flags "Optional,AllowReuseInQuest,AllowReserved"`
+
+### Pattern 3: Create Weapons and Armor Mod
 
 **CRITICAL**: Weapons and armor REQUIRE `--model` to be visible in-game!
 
@@ -84,7 +142,7 @@ dotnet run --project src/SpookysAutomod.Cli -- esp info "MyGearMod.esp" --json
 - Armor: `iron-cuirass`, `iron-helmet`, `iron-gauntlets`, `iron-boots`, `iron-shield`
 - Custom: `--model "Weapons\Daedric\DaedricSword.nif"`
 
-### Pattern 3: Create Functional Spells
+### Pattern 4: Create Functional Spells
 
 **CRITICAL**: Spells REQUIRE `--effect` to actually do something!
 
@@ -112,7 +170,7 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-spell "SpellPack.esp" "SP
 - `fortify-health`, `fortify-magicka`, `fortify-stamina`
 - `fortify-armor`, `fortify-attack`
 
-### Pattern 4: Create Functional Perks
+### Pattern 5: Create Functional Perks
 
 **CRITICAL**: Perks REQUIRE `--effect` to actually do something!
 
@@ -144,7 +202,7 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-perk "PerkMod.esp" "PM_As
 - `pickpocket` - Increase pickpocket chance by X%
 - `prices` - Improve buying/selling prices by X%
 
-### Pattern 5: Create Books and Lore (Works Immediately!)
+### Pattern 6: Create Books and Lore (Works Immediately!)
 
 Books are the simplest - no models or effects needed:
 
@@ -159,21 +217,178 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-book "MyLoreMod.esp" "MLM
 
 ---
 
+## Script Properties and Form References
+
+### Understanding Script Properties
+
+Script properties link Papyrus variables to game records. When you declare `GlobalVariable Property MyGlobal Auto` in a script, you must set that property in the ESP to point to an actual global record.
+
+### Setting Script Properties
+
+```bash
+# Object property - links to a form (global, faction, keyword, quest, etc.)
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script ScriptName --property PropName --value "Plugin.esp|0xFormID" --type object
+
+# Alias property - links to another alias in the same quest
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script ScriptName --property PropName --value "AliasName" --type alias
+
+# Primitive types
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script ScriptName --property PropName --value "42" --type int
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script ScriptName --property PropName --value "3.14" --type float
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script ScriptName --property PropName --value "true" --type bool
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script ScriptName --property PropName --value "Hello" --type string
+```
+
+### Setting Properties on Alias Scripts
+
+Use `--alias-target` to set properties on scripts attached to aliases:
+
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "Mod.esp" --quest QuestID --script AliasScriptName --alias-target AliasName --property PropName --value "Plugin.esp|0xFormID" --type object
+```
+
+### Form Key Format
+
+Form keys use the format `Plugin.esp|0xFormID`:
+
+```bash
+# Reference a global in the same mod (FormID 0x800)
+--value "MyMod.esp|0x800" --type object
+
+# Reference a Skyrim.esm keyword
+--value "Skyrim.esm|0x1CB87" --type object
+
+# Reference a Skyrim.esm faction
+--value "Skyrim.esm|0x28347" --type object
+```
+
+**Important:** Don't hardcode Skyrim.esm Form IDs! Use `esp auto-fill` instead - it searches by EditorID and ensures type correctness.
+
+---
+
+## Auto-Fill: Automatic Script Property Resolution
+
+### What is Auto-Fill?
+
+The `esp auto-fill` command automatically fills script properties by:
+1. Reading property names and types from `.psc` (Papyrus source) files
+2. Searching Skyrim.esm for records with matching EditorIDs
+3. **Type-filtering**: Only matching records of the correct type
+
+This prevents errors like matching a Location instead of a Keyword when both have similar names.
+
+### Basic Usage
+
+```bash
+# Auto-detect properties from PSC files (RECOMMENDED)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
+  --quest MyQuest \
+  --mod-folder "path/to/mod" \
+  --data-folder "path/to/Skyrim/Data"
+
+# Target specific alias
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
+  --quest MyQuest \
+  --alias FollowerAlias01 \
+  --mod-folder "path/to/mod" \
+  --data-folder "path/to/Skyrim/Data"
+
+# Specify properties manually (no type filtering)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
+  --quest MyQuest \
+  --properties "LocTypeInn,LocTypeDungeon,LocTypeClearable" \
+  --data-folder "path/to/Skyrim/Data"
+```
+
+### How Type-Aware Auto-Fill Works
+
+When parsing a `.psc` file:
+```papyrus
+Keyword Property LocTypeInn Auto           ; Searches only IKeywordGetter
+GlobalVariable Property ModEnabled Auto    ; Searches only IGlobalGetter
+Quest Property MainQuest Auto              ; Searches only IQuestGetter
+Faction Property TrackingFaction Auto      ; Searches only IFactionGetter
+```
+
+The auto-fill extracts the property type (`Keyword`, `GlobalVariable`, etc.) and only searches for records of that specific type. This prevents incorrect matches.
+
+**Example Problem Solved:**
+
+Without type filtering, searching for "LocTypeInn" might find:
+- `LocTypeInn` (Keyword) at `0x01CB87` ← CORRECT
+- `RiverwoodInn` (Location) at `0x01CB88` ← WRONG TYPE!
+
+With type filtering, only the Keyword is matched.
+
+### Supported Type Mappings
+
+| Papyrus Type | Searches For |
+|--------------|--------------|
+| `Keyword` | Keywords only |
+| `GlobalVariable` | Globals only |
+| `Quest` | Quests only |
+| `Faction` | Factions only |
+| `Actor` / `ActorBase` | NPCs only |
+| `Spell` | Spells only |
+| `Perk` | Perks only |
+| `Weapon` | Weapons only |
+| `Armor` | Armor only |
+| `Book` | Books only |
+| `Location` | Locations only |
+| `WorldSpace` | Worldspaces only |
+| `MagicEffect` | Magic effects only |
+| `FormList` | Form lists only |
+| And 30+ more types... | |
+
+### When to Use Auto-Fill vs Manual Properties
+
+| Scenario | Approach |
+|----------|----------|
+| Skyrim.esm keywords, worldspaces, factions | Use `esp auto-fill` |
+| Properties in YOUR mod (globals, factions, quests) | Use `esp set-property` with specific FormID |
+| Mixed (some yours, some vanilla) | Set yours first, then run auto-fill |
+
+### Complete Auto-Fill Workflow
+
+```bash
+# 1. Create plugin and records
+dotnet run --project src/SpookysAutomod.Cli -- esp create "MyMod.esp" --light
+dotnet run --project src/SpookysAutomod.Cli -- esp add-global "MyMod.esp" MyMod_Enabled --value 1
+dotnet run --project src/SpookysAutomod.Cli -- esp add-quest "MyMod.esp" MyMod_Quest --start-enabled
+dotnet run --project src/SpookysAutomod.Cli -- esp attach-script "MyMod.esp" --quest MyMod_Quest --script MyQuestScript
+
+# 2. Set mod-specific properties (FormIDs you control)
+dotnet run --project src/SpookysAutomod.Cli -- esp set-property "MyMod.esp" \
+  --quest MyMod_Quest --script MyQuestScript \
+  --property ModEnabled --value "MyMod.esp|0x800" --type object
+
+# 3. Auto-fill Skyrim.esm references (reads types from PSC)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
+  --quest MyMod_Quest \
+  --mod-folder "path/to/mod" \
+  --data-folder "path/to/Skyrim/Data"
+```
+
+---
+
 ## Troubleshooting Existing Mods
 
 ### Inspect and Diagnose Issues
 
 ```bash
-# 1. Check plugin contents and structure
+# 1. Check plugin contents and structure (basic info)
 dotnet run --project src/SpookysAutomod.Cli -- esp info "BrokenMod.esp" --json
 
-# 2. List master dependencies
+# 2. Detailed analysis including scripts, aliases, and properties
+dotnet run --project src/SpookysAutomod.Cli -- esp analyze "BrokenMod.esp" --json
+
+# 3. List master dependencies
 dotnet run --project src/SpookysAutomod.Cli -- esp list-masters "BrokenMod.esp" --json
 
-# 3. See what's in the BSA
+# 4. See what's in the BSA
 dotnet run --project src/SpookysAutomod.Cli -- archive list "BrokenMod.bsa" --limit 0 --json
 
-# 4. Check specific file types
+# 5. Check specific file types
 dotnet run --project src/SpookysAutomod.Cli -- archive list "BrokenMod.bsa" --filter "*.nif" --json
 dotnet run --project src/SpookysAutomod.Cli -- archive list "BrokenMod.bsa" --filter "*.pex" --json
 ```
@@ -248,8 +463,14 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-spell "ExistingMod.esp" "
 # 4. Add new perk
 dotnet run --project src/SpookysAutomod.Cli -- esp add-perk "ExistingMod.esp" "NewPerk" --name "Bonus Perk" --effect weapon-damage --bonus 10 --playable --json
 
-# 5. Verify additions
-dotnet run --project src/SpookysAutomod.Cli -- esp info "ExistingMod.esp" --json
+# 5. Add new faction
+dotnet run --project src/SpookysAutomod.Cli -- esp add-faction "ExistingMod.esp" "NewFaction" --name "My Faction" --json
+
+# 6. Add new alias to existing quest
+dotnet run --project src/SpookysAutomod.Cli -- esp add-alias "ExistingMod.esp" --quest "ExistingQuest" --name "NewAlias" --script "AliasScript" --json
+
+# 7. Verify additions
+dotnet run --project src/SpookysAutomod.Cli -- esp analyze "ExistingMod.esp" --json
 ```
 
 ### Scale Meshes
@@ -331,21 +552,36 @@ dotnet run --project src/SpookysAutomod.Cli -- audio create-fuz "./Audio/line.xw
 
 ## SKSE Plugin Development
 
-### Create Native Plugin
+### Create and Build Native Plugin
+
+**Requirements:** User must have CMake and MSVC Build Tools installed (see README "SKSE C++ Build Tools" section).
 
 ```bash
-# Create project with Papyrus native function support
-dotnet run --project src/SpookysAutomod.Cli -- skse create "MyNativePlugin" --template papyrus-native --author "LLM" --output "./"
+# 1. Check if build tools are available
+cmake --version
+cl  # Should show MSVC compiler version
 
-# Add custom functions
-dotnet run --project src/SpookysAutomod.Cli -- skse add-function "./MyNativePlugin" --name "GetActorSpeed" --return "Float" --param "Actor:target"
-dotnet run --project src/SpookysAutomod.Cli -- skse add-function "./MyNativePlugin" --name "SetActorSpeed" --return "void" --param "Actor:target" --param "Float:speed"
+# 2. Create project with Papyrus native function support
+dotnet run --project src/SpookysAutomod.Cli -- skse create "MyNativePlugin" --template papyrus-native --author "LLM" --output "./" --json
 
-# Build (requires Visual Studio and CMake)
-# cd MyNativePlugin
-# cmake -B build -S .
-# cmake --build build --config Release
+# 3. Add custom functions
+dotnet run --project src/SpookysAutomod.Cli -- skse add-function "./MyNativePlugin" --name "GetActorSpeed" --return "Float" --param "Actor:target" --json
+dotnet run --project src/SpookysAutomod.Cli -- skse add-function "./MyNativePlugin" --name "SetActorSpeed" --return "void" --param "Actor:target" --param "Float:speed" --json
+
+# 4. Build with CMake (no Visual Studio IDE needed)
+cd MyNativePlugin
+cmake -B build -S .
+cmake --build build --config Release
+
+# 5. Output DLL ready to use
+# Result: build/Release/MyNativePlugin.dll
+# Install to: Data/SKSE/Plugins/MyNativePlugin.dll
 ```
+
+**If build tools missing:**
+- Guide user to install CMake: https://cmake.org/download/
+- Guide user to install MSVC Build Tools: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022
+- See README "SKSE C++ Build Tools" section for detailed setup
 
 ---
 
@@ -387,24 +623,32 @@ When success is false:
 ## Command Reference by Module
 
 ### ESP (Plugin Files)
+
 | Task | Command |
 |------|---------|
 | Create plugin | `esp create name [--light] [--author]` |
 | Get info | `esp info plugin` |
-| Add quest | `esp add-quest plugin editorId [--name] [--start-enabled]` |
+| Detailed analysis | `esp analyze plugin` |
+| Add quest | `esp add-quest plugin editorId [--name] [--start-enabled] [--run-once]` |
 | Add spell | `esp add-spell plugin editorId [--name] [--effect] [--magnitude]` |
 | Add perk | `esp add-perk plugin editorId [--name] [--effect] [--bonus] [--playable]` |
 | Add global | `esp add-global plugin editorId [--type] [--value]` |
+| Add faction | `esp add-faction plugin editorId [--name] [--hidden] [--track-crime]` |
 | Add weapon | `esp add-weapon plugin editorId [--name] [--type] [--damage] [--model]` |
 | Add armor | `esp add-armor plugin editorId [--name] [--type] [--slot] [--model]` |
 | Add NPC | `esp add-npc plugin editorId [--name] [--level] [--essential]` |
 | Add book | `esp add-book plugin editorId [--name] [--text]` |
+| Add alias | `esp add-alias plugin --quest id --name name [--script] [--flags]` |
 | Attach script | `esp attach-script plugin --quest id --script name` |
+| Attach alias script | `esp attach-alias-script plugin --quest id --alias name --script name` |
+| Set property | `esp set-property plugin --quest id --script name --property name --value val --type type [--alias-target]` |
+| **Auto-fill** | `esp auto-fill plugin --quest id [--alias name] [--mod-folder path] [--properties "A,B"] --data-folder path` |
 | Generate SEQ | `esp generate-seq plugin --output dir` |
 | List masters | `esp list-masters plugin` |
 | Merge plugins | `esp merge source target [--output]` |
 
 ### Papyrus (Scripts)
+
 | Task | Command |
 |------|---------|
 | Check tools | `papyrus status` |
@@ -415,6 +659,7 @@ When success is false:
 | Validate | `papyrus validate psc` |
 
 ### Archive (BSA/BA2)
+
 | Task | Command |
 |------|---------|
 | Check tools | `archive status` |
@@ -424,6 +669,7 @@ When success is false:
 | Create | `archive create directory --output file [--compress] [--game]` |
 
 ### MCM (Configuration)
+
 | Task | Command |
 |------|---------|
 | Create config | `mcm create modName displayName --output file` |
@@ -433,6 +679,7 @@ When success is false:
 | Add slider | `mcm add-slider config id text --min --max [--step]` |
 
 ### NIF (Meshes)
+
 | Task | Command |
 |------|---------|
 | Get info | `nif info file` |
@@ -441,6 +688,7 @@ When success is false:
 | Copy | `nif copy file --output file` |
 
 ### Audio
+
 | Task | Command |
 |------|---------|
 | Get info | `audio info file` |
@@ -449,6 +697,7 @@ When success is false:
 | WAV to XWM | `audio wav-to-xwm wav --output file` |
 
 ### SKSE (C++ Plugins)
+
 | Task | Command |
 |------|---------|
 | List templates | `skse templates` |
@@ -487,8 +736,15 @@ MyMod/
 ### Error Prevention
 1. Check tool status before operations: `papyrus status`, `archive status`
 2. Validate before compiling: `papyrus validate`, `mcm validate`
-3. Get info before modifications: `esp info`, `nif info`
+3. Get info before modifications: `esp info`, `esp analyze`, `nif info`
 4. Use `--json` for all operations when scripting
+
+### ESL Form ID Limits
+
+When creating ESL-flagged plugins (`--light`):
+- Form IDs are automatically assigned starting from 0x800
+- Maximum of 4096 records (0x800 - 0xFFF range)
+- If you exceed this, the plugin will fail to load
 
 ### What Works Immediately vs Needs Additional Assets
 
@@ -497,8 +753,45 @@ MyMod/
 | Books | Works immediately | No dependencies |
 | Quests | Works immediately | Need scripts for logic |
 | Globals | Works immediately | For configuration |
+| Factions | Works immediately | For tracking/relations |
+| Aliases | Works immediately | Need scripts for behavior |
 | Spells | Needs `--effect` | Without effect, spell does nothing |
 | Perks | Needs `--effect` | Without effect, perk does nothing |
 | Weapons | Needs `--model` | Without model, invisible |
 | Armor | Needs `--model` | Without model, invisible |
 | NPCs | Record only | Need race/face data for visibility |
+
+---
+
+## Technical Architecture Notes
+
+### Quest Alias Scripts in Mutagen
+
+**Critical Understanding:** Alias scripts are NOT stored on the `QuestAlias` object itself. They're stored in `QuestFragmentAlias` within the quest's `VirtualMachineAdapter`:
+
+```
+Quest
+ └── VirtualMachineAdapter (QuestAdapter)
+      ├── Scripts[]           ← Quest scripts
+      └── Aliases[]           ← QuestFragmentAlias objects
+           ├── Property       ← Links to alias by index, MUST include Object = quest FormKey
+           └── Scripts[]      ← Alias scripts
+```
+
+The toolkit handles this automatically when you use:
+- `esp add-alias --script ScriptName`
+- `esp attach-alias-script`
+- `esp set-property --alias-target`
+
+**Important:** `QuestFragmentAlias.Property.Object` must reference the owning quest's FormKey for the Creation Kit to recognize the alias scripts. The toolkit sets this automatically.
+
+### Fill Types for Aliases
+
+| Fill Type | Use Case |
+|-----------|----------|
+| **Specific Reference** | Script-managed aliases (use `ForceRefTo()` in Papyrus) |
+| **Find Matching Reference** | Auto-fill based on conditions (needs Match Conditions) |
+| **Unique Actor** | Fill with a specific unique NPC |
+| **Create Reference to Object** | Create new reference at runtime |
+
+For dynamic systems (follower tracking, etc.), use **Specific Reference** and manage via script.

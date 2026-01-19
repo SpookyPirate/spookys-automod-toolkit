@@ -6,10 +6,12 @@ The SKSE module handles creation and management of SKSE (Skyrim Script Extender)
 
 SKSE plugins are DLL files that extend Skyrim's functionality at a native level. This module generates project scaffolding using **CommonLibSSE-NG**, which supports Skyrim SE, AE, GOG, and VR from a single codebase.
 
-**Note:** Building SKSE plugins requires:
-- Visual Studio 2022 (or Build Tools)
+**Complete Workflow:** This module generates project files that can then be built using CMake. When build tools are installed, AI assistants can generate and build SKSE plugins end-to-end.
+
+**Building Requirements:**
+- MSVC Build Tools (no Visual Studio IDE needed)
 - CMake 3.21+
-- vcpkg (auto-bootstrapped)
+- vcpkg (auto-bootstrapped on first build)
 
 ## Commands
 
@@ -179,7 +181,7 @@ cmake --build build --config Release
 
 | Tool | Purpose | Installation |
 |------|---------|--------------|
-| Visual Studio 2022 | C++ compiler | [Download](https://visualstudio.microsoft.com/) |
+| MSVC Build Tools | C++ compiler (no IDE needed) | [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) |
 | CMake 3.21+ | Build system | [Download](https://cmake.org/download/) |
 | vcpkg | Dependencies | Auto-bootstrapped by project |
 
@@ -275,17 +277,19 @@ Projects store configuration in `skse_config.json`:
 
 ---
 
-## Limitations
+## Capabilities and Limitations
 
-This module can:
-- Generate project scaffolding
+This module **can**:
+- Generate project scaffolding (CMakeLists.txt, C++ source files)
 - Add Papyrus native function stubs
 - Manage project configuration
+- Build projects (when CMake and MSVC Build Tools are installed)
 
-This module cannot:
-- Write custom C++ logic
-- Compile projects (requires local build tools)
+This module **cannot**:
+- Write custom C++ logic (generates stubs and templates only)
+- Auto-install build tools (user must install CMake and MSVC manually)
 - Debug plugins
+- Generate complex event hooks
 
 For advanced SKSE development:
 - [CommonLibSSE-NG Wiki](https://github.com/CharmedBaryon/CommonLibSSE-NG/wiki)
