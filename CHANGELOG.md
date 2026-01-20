@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-01-20
+
 ### Added
 
 - **Quest alias system** for follower tracking and dynamic NPC management
@@ -167,7 +169,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Process game audio files
 - Generate SKSE plugin projects
 
-[unreleased]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.4.1...HEAD
+[unreleased]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.5.0...HEAD
+
+[1.5.0]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.4.1...v1.5.0
 
 [1.4.1]: https://github.com/SpookyPirate/spookys-automod-toolkit/compare/v1.4.0...v1.4.1
 
