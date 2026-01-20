@@ -42,7 +42,7 @@ Create new mods, inspect existing ones, extract archives, decompile scripts, and
 **Option B: Git**
 
 ```bash
-git clone https://github.com/yourusername/spookys-automod-toolkit.git
+git clone https://github.com/SpookyPirate/spookys-automod-toolkit.git
 ```
 
 **Build:**
@@ -483,7 +483,6 @@ However, you can reference any existing vanilla model with `--model`.
 # Plugin Creation & Info
 esp create "ModName" --light --author "Name"
 esp info "Mod.esp"
-esp analyze "Mod.esp"  # Detailed analysis with scripts and aliases
 esp debug-types [pattern]  # Show Mutagen type structures (e.g., "Quest*")
 
 # Record Creation (all support --dry-run for preview)
@@ -597,7 +596,7 @@ skse info "./ProjectFolder"
 All commands support `--json` for machine-readable output:
 
 ```bash
-spookys-automod esp info "MyMod.esp" --json
+dotnet run --project src/SpookysAutomod.Cli -- esp info "MyMod.esp" --json
 ```
 
 ---
