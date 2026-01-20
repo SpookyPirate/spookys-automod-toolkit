@@ -1,6 +1,6 @@
 ---
 name: skyrim-esp
-description: Create and modify Skyrim plugin files (.esp/.esl). Use when the user wants to create a mod, add weapons, armor, spells, perks, books, quests, NPCs, factions, or globals to a plugin. Includes quest aliases, script property management, type inspection, and detailed analysis. Also use when inspecting existing plugins or merging mods.
+description: Create and modify Skyrim plugin files (.esp/.esl). Use when the user wants to create a mod, add weapons, armor, spells, perks, books, quests, NPCs, factions, globals, leveled lists, encounter zones, locations, outfits, or form lists to a plugin. Includes quest aliases, script property management, type inspection, and detailed analysis. Also use when inspecting existing plugins or merging mods.
 ---
 
 # Skyrim ESP Module
@@ -84,34 +84,67 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-npc "<plugin>" "<editorId
 dotnet run --project src/SpookysAutomod.Cli -- esp add-faction "<plugin>" "<editorId>" --name "Name" --flags "HiddenFromPC,TrackCrime"
 ```
 
-**LeveledItems** (for random loot):
+**LeveledItems** (for random loot distribution):
 ```bash
-dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "<plugin>" "<editorId>" --name "Name" --chance-none 25 --preset low-treasure
+# With preset
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "<plugin>" "<editorId>" --preset low-treasure
+
+# Custom with entries (format: item,level,count)
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "<plugin>" "<editorId>" --chance-none 15 --add-entry "GoldBase,1,100" --add-entry "LockPick,5,3"
+
+# Guaranteed multi-item drop
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "<plugin>" "<editorId>" --use-all --add-entry "Sword,10,1" --add-entry "Shield,10,1"
 ```
-Presets: `low-treasure`, `medium-treasure`, `high-treasure`, `guaranteed-loot`
+Presets: `low-treasure` (25% none), `medium-treasure` (15% none), `high-treasure` (5% none), `guaranteed-loot` (0% none)
 
 **FormLists** (for script property collections):
 ```bash
-dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "<plugin>" "<editorId>" --add-form "Skyrim.esm:0x00012345" --add-form "ItemEditorID"
+# Add vanilla forms by FormKey
+dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "<plugin>" "<editorId>" --add-form "Skyrim.esm:0x000896"
+
+# Add mod forms by EditorID
+dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "<plugin>" "<editorId>" --add-form "MyWeapon01" --add-form "MyWeapon02"
+
+# Use in scripts: FormList Property MyList Auto
+# Set property: --property MyList --value "ModName.esp|0x800"
 ```
 
-**EncounterZones** (for level scaling):
+**EncounterZones** (for level scaling control):
 ```bash
-dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "<plugin>" "<editorId>" --min-level 10 --max-level 30 --preset mid-level
+# With preset
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "<plugin>" "<editorId>" --preset mid-level
+
+# Custom with flags
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "<plugin>" "<editorId>" --min-level 30 --max-level 50 --never-resets
+
+# Fully scaling (1-unlimited)
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "<plugin>" "<editorId>" --preset scaling
 ```
 Presets: `low-level` (1-10), `mid-level` (10-30), `high-level` (30-50), `scaling` (1-unlimited)
+Flags: `--never-resets` (enemies stay dead), `--disable-combat-boundary` (NPCs pursue anywhere)
 
-**Locations** (for quest locations):
+**Locations** (for quest markers and fast travel):
 ```bash
-dotnet run --project src/SpookysAutomod.Cli -- esp add-location "<plugin>" "<editorId>" --name "Name" --preset inn --parent-location "ParentLocationID"
+# With preset
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "<plugin>" "<editorId>" --name "The Rusty Tankard" --preset inn
+
+# With parent location
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "<plugin>" "<editorId>" --name "My Shop" --preset dwelling --parent-location "WhiterunHoldLocation"
+
+# Custom keywords
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "<plugin>" "<editorId>" --name "Special Place" --add-keyword "LocTypeCity"
 ```
-Presets: `inn`, `city`, `dungeon`, `dwelling`
+Presets: `inn` (LocTypeInn), `city` (LocTypeCity), `dungeon` (LocTypeDungeon), `dwelling` (LocTypeDwelling)
 
 **Outfits** (for NPC equipment sets):
 ```bash
-dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "<plugin>" "<editorId>" --preset guard --add-item "ItemEditorID"
+# With preset
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "<plugin>" "<editorId>" --preset guard
+
+# Custom items
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "<plugin>" "<editorId>" --add-item "ArmorIronCuirass" --add-item "WeaponIronSword"
 ```
-Presets: `guard` (iron armor), `farmer` (clothes), `mage` (robes), `thief` (leather)
+Presets: `guard` (iron armor + sword + shield), `farmer` (clothes), `mage` (robes + hood), `thief` (leather armor)
 
 ### Quest Aliases
 Quest aliases enable dynamic tracking of NPCs, objects, or locations. Essential for follower frameworks.
@@ -244,6 +277,51 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-weapon "ExistingMod.esp" 
 
 # Verify addition
 dotnet run --project src/SpookysAutomod.Cli -- esp info "ExistingMod.esp"
+```
+
+### Create a Dungeon with Level Scaling
+```bash
+# Create plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "DungeonMod.esp" --light
+
+# Create location
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "DungeonMod.esp" "DM_Crypt" --name "Forgotten Crypt" --preset dungeon
+
+# Create encounter zone
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "DungeonMod.esp" "DM_CryptZone" --preset mid-level --never-resets
+
+# Create boss loot
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "DungeonMod.esp" "DM_BossChest" --preset high-treasure
+
+# Verify
+dotnet run --project src/SpookysAutomod.Cli -- esp info "DungeonMod.esp"
+```
+
+### Create NPCs with Custom Outfits
+```bash
+# Create plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "NPCMod.esp" --light
+
+# Create custom outfit
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "NPCMod.esp" "NM_GuardOutfit" --preset guard
+
+# Create faction
+dotnet run --project src/SpookysAutomod.Cli -- esp add-faction "NPCMod.esp" "NM_TownGuards" --name "Town Guards"
+
+# Create NPC (outfit assigned in Creation Kit)
+dotnet run --project src/SpookysAutomod.Cli -- esp add-npc "NPCMod.esp" "NM_GuardCaptain" --name "Captain Smith" --level 20 --essential
+```
+
+### Create Form List for Script Property
+```bash
+# Create plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "ScriptHelpers.esp" --light
+
+# Create form list with weapons
+dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "ScriptHelpers.esp" "SH_AllWeapons" --add-form "MyWeapon01" --add-form "MyWeapon02"
+
+# In your script, declare: FormList Property AllWeapons Auto
+# Then auto-fill or manually set: --property AllWeapons --value "ScriptHelpers.esp|0x800"
 ```
 
 ## Important Notes
