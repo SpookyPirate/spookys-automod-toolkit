@@ -21,7 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Searches Skyrim.esm by EditorID with type filtering
     - Prevents wrong matches (e.g., Location vs Keyword with similar names)
     - Supports 40+ Papyrus type → Mutagen type mappings
-    - Array property support: `Keyword[] Property MyKeywords Auto`
+    - **Complete array property support** using `ScriptObjectListProperty`
+        - Auto-fill creates proper multi-element arrays for PSC array properties
+        - ScriptBuilder.WithArrayProperty() supports multiple FormKeys
+        - Currently fills arrays with single matching element (first match)
+        - Future: Pattern matching and explicit multi-element lists
     - Cached link cache for 5x performance improvement on repeated operations
 - **Type inspection tools** for debugging
     - `esp debug-types` - Show Mutagen type structures with reflection
@@ -52,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Services: AliasService, ScriptPropertyService, AutoFillService, BulkAutoFillService, TypeInspectionService, LinkCacheManager
 - Builders: FactionBuilder, ScriptBuilder extended with WithObjectProperty() and WithArrayProperty()
+- Array properties use Mutagen's ScriptObjectListProperty with ExtendedList<ScriptObjectProperty>
 - Auto-fill always loads Skyrim.esm for vanilla record lookups
 - QuestFragmentAlias.Property.Object correctly references quest FormKey
 - Link cache caching with 5-minute timeout for performance optimization

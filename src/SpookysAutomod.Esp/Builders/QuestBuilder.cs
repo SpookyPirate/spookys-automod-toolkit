@@ -200,8 +200,7 @@ public class ScriptBuilder
 
     /// <summary>
     /// Add an array property (list of FormKey references).
-    /// NOTE: Currently simplified to add first element only.
-    /// Full array support requires additional Mutagen research.
+    /// Creates a ScriptObjectListProperty with multiple elements.
     /// </summary>
     public ScriptBuilder WithArrayProperty(string name, List<FormKey> formKeys)
     {
@@ -210,16 +209,26 @@ public class ScriptBuilder
             throw new ArgumentException("Array property requires at least one FormKey", nameof(formKeys));
         }
 
-        // For now, use the first element as a single object property
-        // TODO: Research proper Mutagen array property implementation
-        var prop = new ScriptObjectProperty
+        var arrayProp = new ScriptObjectListProperty
         {
             Name = name,
             Flags = ScriptProperty.Flag.Edited,
-            Object = formKeys[0].ToNullableLink<ISkyrimMajorRecordGetter>()
+            Objects = new ExtendedList<ScriptObjectProperty>()
         };
 
-        _script.Properties.Add(prop);
+        foreach (var formKey in formKeys)
+        {
+            var objProp = new ScriptObjectProperty
+            {
+                Alias = -1,  // -1 indicates no alias reference
+                Unused = 0,
+                Flags = ScriptProperty.Flag.Edited,
+                Object = formKey.ToNullableLink<ISkyrimMajorRecordGetter>()
+            };
+            arrayProp.Objects.Add(objProp);
+        }
+
+        _script.Properties.Add(arrayProp);
         return this;
     }
 

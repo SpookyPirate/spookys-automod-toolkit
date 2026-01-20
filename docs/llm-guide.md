@@ -1,25 +1,38 @@
 # LLM Guide for Spooky's AutoMod Toolkit
 
-This guide is specifically designed for LLMs to understand how to use the toolkit effectively for autonomous Skyrim mod creation, troubleshooting, editing, and patching.
+**Version:** 1.5.0
+**Purpose:** Comprehensive technical reference for workflow patterns and advanced features
 
-## Quick Reference
+---
+
+## About This Guide
+
+This is a **detailed technical reference** for LLMs working with the toolkit. It provides:
+- Complete workflow patterns for common scenarios
+- Advanced feature documentation (auto-fill, type inspection, dry-run)
+- Detailed command examples with full syntax
+- Troubleshooting and patching workflows
+- Best practices for technical implementation
+
+**📌 PREREQUISITES:** Read `llm-init-prompt.md` first for:
+- Your role and behavioral guidelines
+- Mandatory rules (ALWAYS/NEVER)
+- Communication patterns and decision frameworks
+- Setup checklist
+
+This guide assumes you've already been initialized and focuses purely on technical how-to patterns.
+
+---
+
+## Quick Command Format
 
 ```bash
-# All commands start from toolkit directory
-cd "C:\Tools\spookys-automod-toolkit"
-
-# All commands use this format
+# All commands use this format from toolkit directory
 dotnet run --project src/SpookysAutomod.Cli -- <module> <command> [args] [options]
+
+# Always append --json for parseable output
+dotnet run --project src/SpookysAutomod.Cli -- esp info "MyMod.esp" --json
 ```
-
-## Core Principles
-
-1. **Always use `--json` flag** for parsing command output
-2. **Check success status** before proceeding with dependent operations
-3. **Use suggestions** from error responses to fix issues
-4. **Chain commands** to build complete mods
-5. **Use unique prefixes** for Editor IDs (e.g., `MyMod_`)
-6. **Papyrus compilation requires script headers** - See README section "Papyrus Script Headers" for setup
 
 ---
 
@@ -349,14 +362,16 @@ With type filtering, only the Keyword is matched.
 
 ### Array Property Support
 
-Auto-fill now supports array properties:
+Auto-fill now supports array properties using ScriptObjectListProperty:
 
 ```papyrus
-Keyword[] Property AllKeywords Auto     ; Creates ScriptArrayProperty
-Location[] Property AllLocations Auto   ; Creates ScriptArrayProperty with multiple FormKeys
+Keyword[] Property AllKeywords Auto     ; Creates ScriptObjectListProperty
+Location[] Property AllLocations Auto   ; Creates ScriptObjectListProperty with ExtendedList
 ```
 
-**Note:** Currently, array properties are filled with a single matching element. For multiple elements, you'll need to add them manually with `esp set-property`.
+**Current Behavior:** Array properties are correctly structured as ScriptObjectListProperty with the first matching FormKey. Each element is a ScriptObjectProperty with Alias=-1, Unused=0.
+
+**Future Enhancement:** Pattern matching (e.g., "LocType*" → all LocTypeX keywords) and multi-element population from PSC comments or explicit commands.
 
 ### Performance: Link Cache Caching
 
@@ -807,37 +822,43 @@ When success is false:
 
 ---
 
-## Best Practices
+## Technical Best Practices
 
 ### Naming Conventions
-- Use unique prefixes for EditorIDs: `MyMod_` or `MM_`
-- Scripts match pattern: `MyMod_QuestScript`
-- Globals follow conventions: `bMyMod_Enabled`, `fMyMod_Multiplier`
+
+**EditorIDs:**
+- Use unique prefixes: `MyMod_` or `MM_`
+- Scripts: `MyMod_QuestScript`, `MyMod_FollowerScript`
+- Globals: `bMyMod_Enabled`, `fMyMod_Multiplier`, `iMyMod_Count`
+- Quests: `MyMod_MainQuest`, `MyMod_TrackerQuest`
+- Aliases: `FollowerAlias01`, `EnemyAlias`, `LocationAlias`
+
+**Global Prefixes by Type:**
+- Bool: `bMyMod_Feature`
+- Float: `fMyMod_Multiplier`
+- Int: `iMyMod_Counter`
 
 ### File Organization
+
 ```
 MyMod/
   MyMod.esp              # Plugin file
   MyMod.seq              # SEQ file (if start-enabled quests)
   Scripts/
     Source/              # PSC source files
+      MyMod_QuestScript.psc
+      MyMod_AliasScript.psc
     *.pex                # Compiled scripts
   MCM/
     config/
       MyMod/
-        config.json
+        config.json      # MCM Helper configuration
   Sound/
     Voice/
       MyMod.esp/
         NPCName/
-          *.fuz
+          *.fuz          # Voice files
 ```
-
-### Error Prevention
-1. Check tool status before operations: `papyrus status`, `archive status`
-2. Validate before compiling: `papyrus validate`, `mcm validate`
-3. Get info before modifications: `esp info`, `esp analyze`, `nif info`
-4. Use `--json` for all operations when scripting
 
 ### ESL Form ID Limits
 

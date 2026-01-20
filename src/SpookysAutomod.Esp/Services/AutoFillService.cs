@@ -4,6 +4,7 @@ using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Plugins.Records;
 using Mutagen.Bethesda.Skyrim;
+using Noggog;
 using SpookysAutomod.Core.Logging;
 using SpookysAutomod.Core.Models;
 
@@ -284,24 +285,44 @@ public class AutoFillService
                 }
 
                 // Add property to script
-                // NOTE: Array properties detected but currently added as single object
-                // Full array support requires additional Mutagen research
                 if (prop.IsArray)
                 {
-                    _logger.Warning($"Property '{prop.Name}' is an array - adding first match only. Full array support is limited.");
+                    // For array properties, use ScriptObjectListProperty
+                    var arrayProp = new ScriptObjectListProperty
+                    {
+                        Name = prop.Name,
+                        Flags = ScriptProperty.Flag.Edited,
+                        Objects = new ExtendedList<ScriptObjectProperty>()
+                    };
+
+                    // Add the found FormKey as the first element
+                    var objProp = new ScriptObjectProperty
+                    {
+                        Alias = -1,  // -1 means no alias reference
+                        Unused = 0,
+                        Flags = ScriptProperty.Flag.Edited,
+                        Object = formKey.Value.ToNullableLink<ISkyrimMajorRecordGetter>()
+                    };
+                    arrayProp.Objects.Add(objProp);
+
+                    script.Properties.Add(arrayProp);
+                    result.FilledProperties.Add(prop.Name);
+                    _logger.Info($"Filled array property '{prop.Name}' with 1 element: {formKey.Value}");
                 }
-
-                var objProp = new ScriptObjectProperty
+                else
                 {
-                    Name = prop.Name,
-                    Flags = ScriptProperty.Flag.Edited,
-                    Object = formKey.Value.ToNullableLink<ISkyrimMajorRecordGetter>()
-                };
+                    // Single object property
+                    var objProp = new ScriptObjectProperty
+                    {
+                        Name = prop.Name,
+                        Flags = ScriptProperty.Flag.Edited,
+                        Object = formKey.Value.ToNullableLink<ISkyrimMajorRecordGetter>()
+                    };
 
-                script.Properties.Add(objProp);
-
-                result.FilledProperties.Add(prop.Name);
-                _logger.Info($"Filled property '{prop.Name}' with {formKey.Value}");
+                    script.Properties.Add(objProp);
+                    result.FilledProperties.Add(prop.Name);
+                    _logger.Info($"Filled property '{prop.Name}' with {formKey.Value}");
+                }
             }
 
             result.FilledCount = result.FilledProperties.Count;

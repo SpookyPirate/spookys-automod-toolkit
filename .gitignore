@@ -42,9 +42,6 @@ claude.md
 CLAUDE.md
 tmpclaude-*
 
-# Claude Code skills (included in releases only, not source code)
-.claude/
-
 # Other
 spookys-automod-toolkit.code-workspace
 temp/
