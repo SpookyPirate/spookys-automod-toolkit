@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **LeveledItem support** for random loot and equipment lists
+    - `esp add-leveled-item` - Create leveled item lists with entries and chance-none
+    - Presets: low-treasure, medium-treasure, high-treasure, guaranteed-loot
+    - Support for entry management with level and count parameters
+- **FormList support** for script property collections
+    - `esp add-form-list` - Create form lists for use in scripts and conditions
+    - Accepts FormKeys or EditorIDs
+- **EncounterZone support** for level scaling areas
+    - `esp add-encounter-zone` - Create encounter zones with min/max levels
+    - Presets: low-level (1-10), mid-level (10-30), high-level (30-50), scaling (1-unlimited)
+    - Flags: never-resets, match-pc-below-min, disable-combat-boundary
+- **Location support** for quest locations and fast travel
+    - `esp add-location` - Create location records with keywords and parent locations
+    - Presets: inn, city, dungeon, dwelling
+    - Support for location keywords (LocTypeInn, LocTypeCity, etc.)
+- **Outfit support** for NPC equipment sets
+    - `esp add-outfit` - Create outfit records for NPC clothing/armor assignments
+    - Presets: guard (iron armor + sword/shield), farmer (clothes), mage (robes), thief (leather)
+    - Support for multiple armor and weapon items
+
+### Fixed
+
+- AutoFillService now includes Outfit type mapping for auto-fill functionality
+
 ## [1.5.0] - 2026-01-20
 
 ### Added

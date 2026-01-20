@@ -495,6 +495,11 @@ esp add-armor "Mod.esp" "ArmorID" --name "Name" --type light --slot body --ratin
 esp add-npc "Mod.esp" "NPCID" --name "Name" --level 20 --essential --dry-run
 esp add-book "Mod.esp" "BookID" --name "Name" --text "Content..." --dry-run
 esp add-perk "Mod.esp" "PerkID" --name "Name" --description "Effect" --playable --dry-run
+esp add-leveled-item "Mod.esp" "LeveledItemID" --name "Name" --chance-none 25 --preset low-treasure --dry-run
+esp add-form-list "Mod.esp" "FormListID" --add-form "Skyrim.esm:0x00012345" --dry-run
+esp add-encounter-zone "Mod.esp" "EncounterZoneID" --min-level 10 --max-level 30 --preset mid-level --dry-run
+esp add-location "Mod.esp" "LocationID" --name "Name" --preset inn --parent-location "ParentLocationID" --dry-run
+esp add-outfit "Mod.esp" "OutfitID" --preset guard --add-item "ItemID" --dry-run
 
 # Alias & Script Management
 esp add-alias "Mod.esp" --quest "QuestID" --name "AliasName" --script "ScriptName"
@@ -564,6 +569,11 @@ skse info "./ProjectFolder"
 | NPC    | `--name`, `--level`, `--female`, `--essential`, `--unique`       |
 | Book   | `--name`, `--text`, `--value`, `--weight`                        |
 | Perk   | `--name`, `--description`, `--playable`, `--hidden`              |
+| LeveledItem | `--name`, `--chance-none`, `--add-entry`, `--preset`        |
+| FormList | `--add-form` (FormKey or EditorID)                              |
+| EncounterZone | `--min-level`, `--max-level`, `--never-resets`, `--match-pc-below-min`, `--preset` |
+| Location | `--name`, `--parent-location`, `--add-keyword`, `--preset`      |
+| Outfit | `--add-item`, `--preset`                                         |
 
 ---
 

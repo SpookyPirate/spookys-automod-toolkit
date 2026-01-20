@@ -84,6 +84,35 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-npc "<plugin>" "<editorId
 dotnet run --project src/SpookysAutomod.Cli -- esp add-faction "<plugin>" "<editorId>" --name "Name" --flags "HiddenFromPC,TrackCrime"
 ```
 
+**LeveledItems** (for random loot):
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "<plugin>" "<editorId>" --name "Name" --chance-none 25 --preset low-treasure
+```
+Presets: `low-treasure`, `medium-treasure`, `high-treasure`, `guaranteed-loot`
+
+**FormLists** (for script property collections):
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "<plugin>" "<editorId>" --add-form "Skyrim.esm:0x00012345" --add-form "ItemEditorID"
+```
+
+**EncounterZones** (for level scaling):
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "<plugin>" "<editorId>" --min-level 10 --max-level 30 --preset mid-level
+```
+Presets: `low-level` (1-10), `mid-level` (10-30), `high-level` (30-50), `scaling` (1-unlimited)
+
+**Locations** (for quest locations):
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "<plugin>" "<editorId>" --name "Name" --preset inn --parent-location "ParentLocationID"
+```
+Presets: `inn`, `city`, `dungeon`, `dwelling`
+
+**Outfits** (for NPC equipment sets):
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "<plugin>" "<editorId>" --preset guard --add-item "ItemEditorID"
+```
+Presets: `guard` (iron armor), `farmer` (clothes), `mage` (robes), `thief` (leather)
+
 ### Quest Aliases
 Quest aliases enable dynamic tracking of NPCs, objects, or locations. Essential for follower frameworks.
 

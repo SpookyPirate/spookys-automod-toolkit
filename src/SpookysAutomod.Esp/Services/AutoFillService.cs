@@ -40,6 +40,7 @@ public class AutoFillService
         ["LeveledItem"] = new[] { typeof(ILeveledItemGetter) },
         ["LeveledActor"] = new[] { typeof(ILeveledNpcGetter) },
         ["LeveledSpell"] = new[] { typeof(ILeveledSpellGetter) },
+        ["Outfit"] = new[] { typeof(IOutfitGetter) },
         ["Sound"] = new[] { typeof(ISoundDescriptorGetter) },
         ["Static"] = new[] { typeof(IStaticGetter) },
         ["Activator"] = new[] { typeof(IActivatorGetter) },

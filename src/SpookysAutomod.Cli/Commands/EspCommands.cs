@@ -4,6 +4,7 @@ using SpookysAutomod.Core.Logging;
 using SpookysAutomod.Core.Models;
 using SpookysAutomod.Esp.Builders;
 using SpookysAutomod.Esp.Services;
+using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Skyrim;
 
 namespace SpookysAutomod.Cli.Commands;
@@ -37,6 +38,11 @@ public static class EspCommands
         espCommand.AddCommand(CreateDebugTypesCommand());
         espCommand.AddCommand(CreateAutoFillCommand());
         espCommand.AddCommand(CreateAutoFillAllCommand());
+        espCommand.AddCommand(CreateAddLeveledItemCommand());
+        espCommand.AddCommand(CreateAddFormListCommand());
+        espCommand.AddCommand(CreateAddEncounterZoneCommand());
+        espCommand.AddCommand(CreateAddLocationCommand());
+        espCommand.AddCommand(CreateAddOutfitCommand());
 
         return espCommand;
     }
@@ -1382,11 +1388,11 @@ public static class EspCommands
         cmd.SetHandler((context) =>
         {
             var plugin = context.ParseResult.GetValueForArgument(pluginArg);
-            var quest = context.ParseResult.GetValueForOption(questOption);
+            var quest = context.ParseResult.GetValueForOption(questOption)!; // Required option
             var alias = context.ParseResult.GetValueForOption(aliasOption);
-            var script = context.ParseResult.GetValueForOption(scriptOption);
-            var scriptDir = context.ParseResult.GetValueForOption(scriptDirOption);
-            var dataFolder = context.ParseResult.GetValueForOption(dataFolderOption);
+            var script = context.ParseResult.GetValueForOption(scriptOption)!; // Required option
+            var scriptDir = context.ParseResult.GetValueForOption(scriptDirOption)!; // Required option
+            var dataFolder = context.ParseResult.GetValueForOption(dataFolderOption)!; // Required option
             var noCache = context.ParseResult.GetValueForOption(noCacheOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
             var verbose = context.ParseResult.GetValueForOption(_verboseOption);
@@ -1561,6 +1567,674 @@ public static class EspCommands
                 OutputError(result.Error!, json, result.Suggestions);
             }
         }, pluginArg, scriptDirOption, dataFolderOption, noCacheOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateAddLeveledItemCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdArg = new Argument<string>("editorId", "Editor ID for the leveled item");
+        var nameOption = new Option<string?>("--name", "Display name for the leveled item");
+        var chanceNoneOption = new Option<byte>("--chance-none", getDefaultValue: () => 0,
+            description: "Chance (0-100) that the list returns nothing");
+        var addEntryOption = new Option<string[]?>("--add-entry",
+            description: "Add entry in format: editorId,level,count (e.g., GoldBase,1,50). Can be used multiple times.");
+        var presetOption = new Option<string?>("--preset",
+            description: "Use preset: low-treasure, medium-treasure, high-treasure, guaranteed-loot");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
+
+        var cmd = new Command("add-leveled-item", "Add a leveled item list record to a plugin")
+        {
+            pluginArg, editorIdArg, nameOption, chanceNoneOption, addEntryOption, presetOption, dryRunOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var name = context.ParseResult.GetValueForOption(nameOption);
+            var chanceNone = context.ParseResult.GetValueForOption(chanceNoneOption);
+            var entries = context.ParseResult.GetValueForOption(addEntryOption);
+            var preset = context.ParseResult.GetValueForOption(presetOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var loadResult = service.LoadPluginForEdit(plugin);
+            if (!loadResult.Success) { OutputError(loadResult.Error!, json); return; }
+
+            var mod = loadResult.Value!;
+            var builder = new LeveledItemBuilder(mod, editorId);
+
+            builder.WithChanceNone(chanceNone);
+
+            // Apply preset
+            if (!string.IsNullOrEmpty(preset))
+            {
+                switch (preset.ToLowerInvariant())
+                {
+                    case "low-treasure": builder.AsLowTreasure(); break;
+                    case "medium-treasure": builder.AsMediumTreasure(); break;
+                    case "high-treasure": builder.AsHighTreasure(); break;
+                    case "guaranteed-loot": builder.AsGuaranteedLoot(); break;
+                    default:
+                        OutputError($"Unknown preset: {preset}. Use: low-treasure, medium-treasure, high-treasure, guaranteed-loot", json);
+                        return;
+                }
+            }
+
+            // Add entries
+            if (entries != null && entries.Length > 0)
+            {
+                foreach (var entry in entries)
+                {
+                    var parts = entry.Split(',');
+                    if (parts.Length < 2 || parts.Length > 3)
+                    {
+                        OutputError($"Invalid entry format: {entry}. Use: editorId,level[,count]", json);
+                        return;
+                    }
+
+                    var itemEditorId = parts[0];
+                    if (!short.TryParse(parts[1], out var level))
+                    {
+                        OutputError($"Invalid level in entry: {entry}", json);
+                        return;
+                    }
+
+                    short count = 1;
+                    if (parts.Length == 3 && !short.TryParse(parts[2], out count))
+                    {
+                        OutputError($"Invalid count in entry: {entry}", json);
+                        return;
+                    }
+
+                    // Try to find the item in the mod (search weapons, armors, misc items, etc.)
+                    FormKey? itemFormKey = null;
+                    var weapon = mod.Weapons.FirstOrDefault(w => w.EditorID == itemEditorId);
+                    if (weapon != null)
+                    {
+                        itemFormKey = weapon.FormKey;
+                    }
+                    else
+                    {
+                        var armor = mod.Armors.FirstOrDefault(a => a.EditorID == itemEditorId);
+                        if (armor != null)
+                        {
+                            itemFormKey = armor.FormKey;
+                        }
+                        else
+                        {
+                            var miscItem = mod.MiscItems.FirstOrDefault(m => m.EditorID == itemEditorId);
+                            if (miscItem != null)
+                            {
+                                itemFormKey = miscItem.FormKey;
+                            }
+                        }
+                    }
+
+                    if (!itemFormKey.HasValue)
+                    {
+                        OutputError($"Item not found: {itemEditorId}", json);
+                        return;
+                    }
+
+                    builder.AddEntry(itemFormKey.Value, level, count);
+                }
+            }
+
+            var leveledItem = builder.Build();
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
+
+            if (json)
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = leveledItem.EditorID,
+                            formId = leveledItem.FormKey.ToString(),
+                            chanceNone = leveledItem.ChanceNone,
+                            entryCount = leveledItem.Entries?.Count ?? 0,
+                            dryRun
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
+            else if (saveResult.Success)
+            {
+                var msg = $"Added leveled item: {leveledItem.EditorID} ({leveledItem.FormKey}) - {leveledItem.Entries?.Count ?? 0} entries";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command CreateAddFormListCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdArg = new Argument<string>("editorId", "Editor ID for the form list");
+        var addFormOption = new Option<string[]?>("--add-form",
+            description: "Add form in format: ModName.esp:0xFormId or EditorId. Can be used multiple times.");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
+
+        var cmd = new Command("add-form-list", "Add a form list record to a plugin")
+        {
+            pluginArg, editorIdArg, addFormOption, dryRunOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var forms = context.ParseResult.GetValueForOption(addFormOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var loadResult = service.LoadPluginForEdit(plugin);
+            if (!loadResult.Success) { OutputError(loadResult.Error!, json); return; }
+
+            var mod = loadResult.Value!;
+            var builder = new FormListBuilder(mod, editorId);
+
+            // Add forms
+            if (forms != null && forms.Length > 0)
+            {
+                foreach (var formStr in forms)
+                {
+                    // Try to parse as FormKey first
+                    if (Mutagen.Bethesda.Plugins.FormKey.TryFactory(formStr, out var formKey))
+                    {
+                        builder.AddForm(formKey);
+                    }
+                    else
+                    {
+                        // Try to find by EditorID in the mod
+                        var record = mod.EnumerateMajorRecords().FirstOrDefault(r => r.EditorID == formStr);
+                        if (record == null)
+                        {
+                            OutputError($"Form not found: {formStr}", json);
+                            return;
+                        }
+                        builder.AddForm(record.FormKey);
+                    }
+                }
+            }
+
+            var formList = builder.Build();
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
+
+            if (json)
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = formList.EditorID,
+                            formId = formList.FormKey.ToString(),
+                            formCount = formList.Items?.Count ?? 0,
+                            dryRun
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
+            else if (saveResult.Success)
+            {
+                var msg = $"Added form list: {formList.EditorID} ({formList.FormKey}) - {formList.Items?.Count ?? 0} forms";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command CreateAddEncounterZoneCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdArg = new Argument<string>("editorId", "Editor ID for the encounter zone");
+        var minLevelOption = new Option<byte>("--min-level", getDefaultValue: () => 1,
+            description: "Minimum level");
+        var maxLevelOption = new Option<byte>("--max-level", getDefaultValue: () => 0,
+            description: "Maximum level (0 = unlimited)");
+        var neverResetsOption = new Option<bool>("--never-resets", "Zone never resets");
+        var presetOption = new Option<string?>("--preset",
+            description: "Use preset: low-level, mid-level, high-level, scaling");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
+
+        var cmd = new Command("add-encounter-zone", "Add an encounter zone record to a plugin")
+        {
+            pluginArg, editorIdArg, minLevelOption, maxLevelOption, neverResetsOption, presetOption, dryRunOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var minLevel = context.ParseResult.GetValueForOption(minLevelOption);
+            var maxLevel = context.ParseResult.GetValueForOption(maxLevelOption);
+            var neverResets = context.ParseResult.GetValueForOption(neverResetsOption);
+            var preset = context.ParseResult.GetValueForOption(presetOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var loadResult = service.LoadPluginForEdit(plugin);
+            if (!loadResult.Success) { OutputError(loadResult.Error!, json); return; }
+
+            var mod = loadResult.Value!;
+            var builder = new EncounterZoneBuilder(mod, editorId);
+
+            // Apply preset
+            if (!string.IsNullOrEmpty(preset))
+            {
+                switch (preset.ToLowerInvariant())
+                {
+                    case "low-level": builder.AsLowLevel(); break;
+                    case "mid-level": builder.AsMidLevel(); break;
+                    case "high-level": builder.AsHighLevel(); break;
+                    case "scaling": builder.AsScaling(); break;
+                    default:
+                        OutputError($"Unknown preset: {preset}. Use: low-level, mid-level, high-level, scaling", json);
+                        return;
+                }
+            }
+            else
+            {
+                builder.WithMinLevel(minLevel);
+                builder.WithMaxLevel(maxLevel);
+            }
+
+            if (neverResets) builder.NeverResets();
+
+            var encounterZone = builder.Build();
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
+
+            if (json)
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = encounterZone.EditorID,
+                            formId = encounterZone.FormKey.ToString(),
+                            minLevel = encounterZone.MinLevel,
+                            maxLevel = encounterZone.MaxLevel,
+                            dryRun
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
+            else if (saveResult.Success)
+            {
+                var msg = $"Added encounter zone: {encounterZone.EditorID} ({encounterZone.FormKey}) - Level {encounterZone.MinLevel}-{(encounterZone.MaxLevel == 0 ? "unlimited" : encounterZone.MaxLevel.ToString())}";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command CreateAddLocationCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdArg = new Argument<string>("editorId", "Editor ID for the location");
+        var nameOption = new Option<string?>("--name", "Display name for the location");
+        var parentOption = new Option<string?>("--parent-location",
+            description: "Parent location EditorID or FormKey");
+        var keywordOption = new Option<string[]?>("--add-keyword",
+            description: "Add keyword by EditorID or FormKey. Can be used multiple times.");
+        var presetOption = new Option<string?>("--preset",
+            description: "Use preset: inn, city, dungeon, dwelling");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
+
+        var cmd = new Command("add-location", "Add a location record to a plugin")
+        {
+            pluginArg, editorIdArg, nameOption, parentOption, keywordOption, presetOption, dryRunOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var name = context.ParseResult.GetValueForOption(nameOption);
+            var parent = context.ParseResult.GetValueForOption(parentOption);
+            var keywords = context.ParseResult.GetValueForOption(keywordOption);
+            var preset = context.ParseResult.GetValueForOption(presetOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var loadResult = service.LoadPluginForEdit(plugin);
+            if (!loadResult.Success) { OutputError(loadResult.Error!, json); return; }
+
+            var mod = loadResult.Value!;
+            var builder = new LocationBuilder(mod, editorId);
+
+            if (!string.IsNullOrEmpty(name)) builder.WithName(name);
+
+            // Apply preset
+            if (!string.IsNullOrEmpty(preset))
+            {
+                switch (preset.ToLowerInvariant())
+                {
+                    case "inn": builder.AsInn(); break;
+                    case "city": builder.AsCity(); break;
+                    case "dungeon": builder.AsDungeon(); break;
+                    case "dwelling": builder.AsDwelling(); break;
+                    default:
+                        OutputError($"Unknown preset: {preset}. Use: inn, city, dungeon, dwelling", json);
+                        return;
+                }
+            }
+
+            // Add parent location
+            if (!string.IsNullOrEmpty(parent))
+            {
+                if (Mutagen.Bethesda.Plugins.FormKey.TryFactory(parent, out var parentFormKey))
+                {
+                    builder.WithParentLocation(parentFormKey);
+                }
+                else
+                {
+                    var parentLoc = mod.Locations.FirstOrDefault(l => l.EditorID == parent);
+                    if (parentLoc == null)
+                    {
+                        OutputError($"Parent location not found: {parent}", json);
+                        return;
+                    }
+                    builder.WithParentLocation(parentLoc.FormKey);
+                }
+            }
+
+            // Add keywords
+            if (keywords != null && keywords.Length > 0)
+            {
+                foreach (var keywordStr in keywords)
+                {
+                    if (Mutagen.Bethesda.Plugins.FormKey.TryFactory(keywordStr, out var keywordFormKey))
+                    {
+                        builder.AddKeyword(keywordFormKey);
+                    }
+                    else
+                    {
+                        var keyword = mod.Keywords.FirstOrDefault(k => k.EditorID == keywordStr);
+                        if (keyword == null)
+                        {
+                            OutputError($"Keyword not found: {keywordStr}", json);
+                            return;
+                        }
+                        builder.AddKeyword(keyword.FormKey);
+                    }
+                }
+            }
+
+            var location = builder.Build();
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
+
+            if (json)
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = location.EditorID,
+                            formId = location.FormKey.ToString(),
+                            name = location.Name?.String,
+                            keywordCount = location.Keywords?.Count ?? 0,
+                            dryRun
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
+            else if (saveResult.Success)
+            {
+                var msg = $"Added location: {location.EditorID} ({location.FormKey})";
+                if (!string.IsNullOrEmpty(location.Name?.String)) msg += $" - {location.Name}";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command CreateAddOutfitCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdArg = new Argument<string>("editorId", "Editor ID for the outfit");
+        var addItemOption = new Option<string[]?>("--add-item",
+            description: "Add item (armor/weapon) by EditorID or FormKey. Can be used multiple times.");
+        var presetOption = new Option<string?>("--preset",
+            description: "Use preset: guard, farmer, mage, thief");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
+
+        var cmd = new Command("add-outfit", "Add an outfit record to a plugin")
+        {
+            pluginArg, editorIdArg, addItemOption, presetOption, dryRunOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var items = context.ParseResult.GetValueForOption(addItemOption);
+            var preset = context.ParseResult.GetValueForOption(presetOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var loadResult = service.LoadPluginForEdit(plugin);
+            if (!loadResult.Success) { OutputError(loadResult.Error!, json); return; }
+
+            var mod = loadResult.Value!;
+            var builder = new OutfitBuilder(mod, editorId);
+
+            // Apply preset
+            if (!string.IsNullOrEmpty(preset))
+            {
+                switch (preset.ToLowerInvariant())
+                {
+                    case "guard": builder.AsGuard(); break;
+                    case "farmer": builder.AsFarmer(); break;
+                    case "mage": builder.AsMage(); break;
+                    case "thief": builder.AsThief(); break;
+                    default:
+                        OutputError($"Unknown preset: {preset}. Use: guard, farmer, mage, thief", json);
+                        return;
+                }
+            }
+
+            // Add items
+            if (items != null && items.Length > 0)
+            {
+                foreach (var itemStr in items)
+                {
+                    if (Mutagen.Bethesda.Plugins.FormKey.TryFactory(itemStr, out var itemFormKey))
+                    {
+                        builder.AddItem(itemFormKey);
+                    }
+                    else
+                    {
+                        // Search in armor and weapon collections
+                        var armor = mod.Armors.FirstOrDefault(a => a.EditorID == itemStr);
+                        if (armor != null)
+                        {
+                            builder.AddItem(armor.FormKey);
+                        }
+                        else
+                        {
+                            var weapon = mod.Weapons.FirstOrDefault(w => w.EditorID == itemStr);
+                            if (weapon == null)
+                            {
+                                OutputError($"Item not found: {itemStr}", json);
+                                return;
+                            }
+                            builder.AddItem(weapon.FormKey);
+                        }
+                    }
+                }
+            }
+
+            var outfit = builder.Build();
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
+
+            if (json)
+            {
+                if (saveResult.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            editorId = outfit.EditorID,
+                            formId = outfit.FormKey.ToString(),
+                            itemCount = outfit.Items?.Count ?? 0,
+                            dryRun
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(new { success = false, error = saveResult.Error }.ToJson());
+                    Environment.ExitCode = 1;
+                }
+            }
+            else if (saveResult.Success)
+            {
+                var msg = $"Added outfit: {outfit.EditorID} ({outfit.FormKey}) - {outfit.Items?.Count ?? 0} items";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
+        });
 
         return cmd;
     }

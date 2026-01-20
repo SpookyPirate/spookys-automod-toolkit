@@ -222,4 +222,276 @@ public class BuilderTests
     }
 
     #endregion
+
+    #region LeveledItem Builder Tests
+
+    [Fact]
+    public void LeveledItemBuilder_Build_CreatesLeveledItem()
+    {
+        var mod = CreateTestMod();
+        var leveledItem = new LeveledItemBuilder(mod, "TestLeveledItem")
+            .Build();
+
+        Assert.NotNull(leveledItem);
+        Assert.Equal("TestLeveledItem", leveledItem.EditorID);
+    }
+
+    [Fact]
+    public void LeveledItemBuilder_WithChanceNone_SetsChanceNone()
+    {
+        var mod = CreateTestMod();
+        var leveledItem = new LeveledItemBuilder(mod, "ChanceNoneTest")
+            .WithChanceNone(25)
+            .Build();
+
+        Assert.Equal(0.25, leveledItem.ChanceNone.Value);
+    }
+
+    [Fact]
+    public void LeveledItemBuilder_AsLowTreasure_SetsPreset()
+    {
+        var mod = CreateTestMod();
+        var leveledItem = new LeveledItemBuilder(mod, "LowTreasure")
+            .AsLowTreasure()
+            .Build();
+
+        Assert.NotNull(leveledItem);
+        Assert.Equal(0.25, leveledItem.ChanceNone.Value);
+    }
+
+    [Fact]
+    public void LeveledItemBuilder_CalculateForEachItem_SetsFlag()
+    {
+        var mod = CreateTestMod();
+        var leveledItem = new LeveledItemBuilder(mod, "CalcEachTest")
+            .CalculateForEachItem()
+            .Build();
+
+        Assert.True(leveledItem.Flags.HasFlag(LeveledItem.Flag.CalculateForEachItemInCount));
+    }
+
+    #endregion
+
+    #region FormList Builder Tests
+
+    [Fact]
+    public void FormListBuilder_Build_CreatesFormList()
+    {
+        var mod = CreateTestMod();
+        var formList = new FormListBuilder(mod, "TestFormList")
+            .Build();
+
+        Assert.NotNull(formList);
+        Assert.Equal("TestFormList", formList.EditorID);
+    }
+
+    [Fact]
+    public void FormListBuilder_AddForm_AddsFormToList()
+    {
+        var mod = CreateTestMod();
+
+        // Create a weapon to add to the form list
+        var weapon = new WeaponBuilder(mod, "TestWeapon").Build();
+
+        var formList = new FormListBuilder(mod, "TestFormList")
+            .AddForm(weapon.FormKey)
+            .Build();
+
+        Assert.NotNull(formList.Items);
+        Assert.Single(formList.Items);
+    }
+
+    [Fact]
+    public void FormListBuilder_AddForms_AddsMultipleForms()
+    {
+        var mod = CreateTestMod();
+
+        var weapon1 = new WeaponBuilder(mod, "Weapon1").Build();
+        var weapon2 = new WeaponBuilder(mod, "Weapon2").Build();
+
+        var formList = new FormListBuilder(mod, "MultiFormList")
+            .AddForms(weapon1.FormKey, weapon2.FormKey)
+            .Build();
+
+        Assert.NotNull(formList.Items);
+        Assert.Equal(2, formList.Items.Count);
+    }
+
+    #endregion
+
+    #region EncounterZone Builder Tests
+
+    [Fact]
+    public void EncounterZoneBuilder_Build_CreatesEncounterZone()
+    {
+        var mod = CreateTestMod();
+        var encounterZone = new EncounterZoneBuilder(mod, "TestZone")
+            .Build();
+
+        Assert.NotNull(encounterZone);
+        Assert.Equal("TestZone", encounterZone.EditorID);
+        Assert.Equal(1, encounterZone.MinLevel);
+        Assert.Equal(0, encounterZone.MaxLevel);
+    }
+
+    [Fact]
+    public void EncounterZoneBuilder_WithMinLevel_SetsMinLevel()
+    {
+        var mod = CreateTestMod();
+        var encounterZone = new EncounterZoneBuilder(mod, "MinLevelTest")
+            .WithMinLevel(10)
+            .Build();
+
+        Assert.Equal(10, encounterZone.MinLevel);
+    }
+
+    [Fact]
+    public void EncounterZoneBuilder_WithMaxLevel_SetsMaxLevel()
+    {
+        var mod = CreateTestMod();
+        var encounterZone = new EncounterZoneBuilder(mod, "MaxLevelTest")
+            .WithMinLevel(10)
+            .WithMaxLevel(30)
+            .Build();
+
+        Assert.Equal(30, encounterZone.MaxLevel);
+    }
+
+    [Fact]
+    public void EncounterZoneBuilder_NeverResets_SetsFlag()
+    {
+        var mod = CreateTestMod();
+        var encounterZone = new EncounterZoneBuilder(mod, "NeverResetsTest")
+            .NeverResets()
+            .Build();
+
+        Assert.True(encounterZone.Flags.HasFlag(EncounterZone.Flag.NeverResets));
+    }
+
+    [Fact]
+    public void EncounterZoneBuilder_AsMidLevel_SetsPreset()
+    {
+        var mod = CreateTestMod();
+        var encounterZone = new EncounterZoneBuilder(mod, "MidLevelTest")
+            .AsMidLevel()
+            .Build();
+
+        Assert.Equal(10, encounterZone.MinLevel);
+        Assert.Equal(30, encounterZone.MaxLevel);
+    }
+
+    #endregion
+
+    #region Location Builder Tests
+
+    [Fact]
+    public void LocationBuilder_Build_CreatesLocation()
+    {
+        var mod = CreateTestMod();
+        var location = new LocationBuilder(mod, "TestLocation")
+            .Build();
+
+        Assert.NotNull(location);
+        Assert.Equal("TestLocation", location.EditorID);
+    }
+
+    [Fact]
+    public void LocationBuilder_WithName_SetsName()
+    {
+        var mod = CreateTestMod();
+        var location = new LocationBuilder(mod, "NamedLocation")
+            .WithName("Test Location Name")
+            .Build();
+
+        Assert.Equal("Test Location Name", location.Name?.String);
+    }
+
+    [Fact]
+    public void LocationBuilder_AddKeyword_AddsKeyword()
+    {
+        var mod = CreateTestMod();
+
+        // Create a keyword to add
+        var keyword = mod.Keywords.AddNew("TestKeyword");
+
+        var location = new LocationBuilder(mod, "KeywordLocation")
+            .AddKeyword(keyword.FormKey)
+            .Build();
+
+        Assert.NotNull(location.Keywords);
+        Assert.Single(location.Keywords);
+    }
+
+    [Fact]
+    public void LocationBuilder_AsInn_AddsInnKeyword()
+    {
+        var mod = CreateTestMod();
+        var location = new LocationBuilder(mod, "InnLocation")
+            .AsInn()
+            .Build();
+
+        Assert.NotNull(location.Keywords);
+        Assert.NotEmpty(location.Keywords);
+    }
+
+    #endregion
+
+    #region Outfit Builder Tests
+
+    [Fact]
+    public void OutfitBuilder_Build_CreatesOutfit()
+    {
+        var mod = CreateTestMod();
+        var outfit = new OutfitBuilder(mod, "TestOutfit")
+            .Build();
+
+        Assert.NotNull(outfit);
+        Assert.Equal("TestOutfit", outfit.EditorID);
+    }
+
+    [Fact]
+    public void OutfitBuilder_AddItem_AddsItemToOutfit()
+    {
+        var mod = CreateTestMod();
+
+        // Create an armor to add to outfit
+        var armor = mod.Armors.AddNew("TestArmor");
+
+        var outfit = new OutfitBuilder(mod, "TestOutfit")
+            .AddItem(armor.FormKey)
+            .Build();
+
+        Assert.NotNull(outfit.Items);
+        Assert.Single(outfit.Items);
+    }
+
+    [Fact]
+    public void OutfitBuilder_AddItems_AddsMultipleItems()
+    {
+        var mod = CreateTestMod();
+
+        var armor1 = mod.Armors.AddNew("Armor1");
+        var armor2 = mod.Armors.AddNew("Armor2");
+
+        var outfit = new OutfitBuilder(mod, "MultiItemOutfit")
+            .AddItems(armor1.FormKey, armor2.FormKey)
+            .Build();
+
+        Assert.NotNull(outfit.Items);
+        Assert.Equal(2, outfit.Items.Count);
+    }
+
+    [Fact]
+    public void OutfitBuilder_AsGuard_AddsGuardItems()
+    {
+        var mod = CreateTestMod();
+        var outfit = new OutfitBuilder(mod, "GuardOutfit")
+            .AsGuard()
+            .Build();
+
+        Assert.NotNull(outfit.Items);
+        Assert.NotEmpty(outfit.Items);
+    }
+
+    #endregion
 }

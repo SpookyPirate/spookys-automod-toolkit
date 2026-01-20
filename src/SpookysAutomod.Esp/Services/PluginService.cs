@@ -242,6 +242,11 @@ public class PluginService
             info.RecordCounts["Perks"] = mod.Perks.Count;
             info.RecordCounts["Factions"] = mod.Factions.Count;
             info.RecordCounts["MiscItems"] = mod.MiscItems.Count;
+            info.RecordCounts["LeveledItems"] = mod.LeveledItems.Count;
+            info.RecordCounts["FormLists"] = mod.FormLists.Count;
+            info.RecordCounts["EncounterZones"] = mod.EncounterZones.Count;
+            info.RecordCounts["Locations"] = mod.Locations.Count;
+            info.RecordCounts["Outfits"] = mod.Outfits.Count;
 
             info.TotalRecords = info.RecordCounts.Values.Sum();
 
