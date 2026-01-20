@@ -480,23 +480,34 @@ However, you can reference any existing vanilla model with `--model`.
 ### Plugin (esp)
 
 ```bash
+# Plugin Creation & Info
 esp create "ModName" --light --author "Name"
 esp info "Mod.esp"
 esp analyze "Mod.esp"  # Detailed analysis with scripts and aliases
-esp add-quest "Mod.esp" "QuestID" --name "Quest Name" --start-enabled
-esp add-spell "Mod.esp" "SpellID" --name "Spell Name" --type spell
-esp add-global "Mod.esp" "GlobalID" --type int --value 1
-esp add-faction "Mod.esp" "FactionID" --name "Faction Name"
-esp add-weapon "Mod.esp" "WeaponID" --name "Name" --type sword --damage 20 --model iron-sword
-esp add-armor "Mod.esp" "ArmorID" --name "Name" --type light --slot body --rating 30 --model iron-cuirass
-esp add-npc "Mod.esp" "NPCID" --name "Name" --level 20 --essential
-esp add-book "Mod.esp" "BookID" --name "Name" --text "Content..."
-esp add-perk "Mod.esp" "PerkID" --name "Name" --description "Effect" --playable
+esp debug-types [pattern]  # Show Mutagen type structures (e.g., "Quest*")
+
+# Record Creation (all support --dry-run for preview)
+esp add-quest "Mod.esp" "QuestID" --name "Quest Name" --start-enabled --dry-run
+esp add-spell "Mod.esp" "SpellID" --name "Spell Name" --type spell --dry-run
+esp add-global "Mod.esp" "GlobalID" --type int --value 1 --dry-run
+esp add-faction "Mod.esp" "FactionID" --name "Faction Name" --dry-run
+esp add-weapon "Mod.esp" "WeaponID" --name "Name" --type sword --damage 20 --model iron-sword --dry-run
+esp add-armor "Mod.esp" "ArmorID" --name "Name" --type light --slot body --rating 30 --model iron-cuirass --dry-run
+esp add-npc "Mod.esp" "NPCID" --name "Name" --level 20 --essential --dry-run
+esp add-book "Mod.esp" "BookID" --name "Name" --text "Content..." --dry-run
+esp add-perk "Mod.esp" "PerkID" --name "Name" --description "Effect" --playable --dry-run
+
+# Alias & Script Management
 esp add-alias "Mod.esp" --quest "QuestID" --name "AliasName" --script "ScriptName"
 esp attach-script "Mod.esp" --quest "QuestID" --script "ScriptName"
 esp attach-alias-script "Mod.esp" --quest "QuestID" --alias "AliasName" --script "ScriptName"
 esp set-property "Mod.esp" --quest "QuestID" --script "ScriptName" --property "PropName" --value "Value" --type object
-esp auto-fill "Mod.esp" --quest "QuestID" --mod-folder "./mod" --data-folder "C:/Skyrim/Data"
+
+# Auto-Fill (automatic property resolution from PSC files)
+esp auto-fill "Mod.esp" --quest "QuestID" --script "ScriptName" --script-dir "./Scripts/Source" --data-folder "C:/Skyrim/Data"
+esp auto-fill-all "Mod.esp" --script-dir "./Scripts/Source" --data-folder "C:/Skyrim/Data"  # Bulk process all scripts
+
+# Utilities
 esp generate-seq "Mod.esp" --output "./"
 esp merge "Source.esp" "Target.esp" --output "Merged.esp"
 esp list-masters "Mod.esp"

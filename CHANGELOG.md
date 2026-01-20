@@ -17,9 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Alias flags: Optional, AllowReuseInQuest, AllowReserved, Essential, etc.
 - **Type-aware auto-fill** for script properties
     - `esp auto-fill` - Automatically fill properties by parsing PSC files
+    - `esp auto-fill-all` - Bulk auto-fill all scripts in a mod
     - Searches Skyrim.esm by EditorID with type filtering
     - Prevents wrong matches (e.g., Location vs Keyword with similar names)
     - Supports 40+ Papyrus type → Mutagen type mappings
+    - Array property support: `Keyword[] Property MyKeywords Auto`
+    - Cached link cache for 5x performance improvement on repeated operations
+- **Type inspection tools** for debugging
+    - `esp debug-types` - Show Mutagen type structures with reflection
+    - Supports pattern matching (e.g., `Quest*`, `QuestAlias`)
+    - Displays properties, types, nullability, and critical notes
+    - Essential for understanding Mutagen's type system
+- **Dry-run mode** for all add commands
+    - `--dry-run` flag previews changes without saving
+    - Works with: add-weapon, add-armor, add-spell, add-perk, add-book, add-quest, add-global, add-npc
+    - Useful for testing and validation workflows
 - **Faction support**
     - `esp add-faction` - Create faction records
     - Configure flags: HiddenFromPC, TrackCrime, etc.
@@ -38,10 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical
 
-- Services: AliasService, ScriptPropertyService, AutoFillService
-- Builders: FactionBuilder
+- Services: AliasService, ScriptPropertyService, AutoFillService, BulkAutoFillService, TypeInspectionService, LinkCacheManager
+- Builders: FactionBuilder, ScriptBuilder extended with WithObjectProperty() and WithArrayProperty()
 - Auto-fill always loads Skyrim.esm for vanilla record lookups
 - QuestFragmentAlias.Property.Object correctly references quest FormKey
+- Link cache caching with 5-minute timeout for performance optimization
+- Reflection-based Mutagen type introspection for debugging
+- Regex-based PSC property parsing with type detection
 
 ## [1.4.1] - 2026-01-12
 

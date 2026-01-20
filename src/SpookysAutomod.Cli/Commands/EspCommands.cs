@@ -34,6 +34,9 @@ public static class EspCommands
         espCommand.AddCommand(CreateGenerateSeqCommand());
         espCommand.AddCommand(CreateListMastersCommand());
         espCommand.AddCommand(CreateMergeCommand());
+        espCommand.AddCommand(CreateDebugTypesCommand());
+        espCommand.AddCommand(CreateAutoFillCommand());
+        espCommand.AddCommand(CreateAutoFillAllCommand());
 
         return espCommand;
     }
@@ -148,6 +151,7 @@ public static class EspCommands
         var startEnabledOption = new Option<bool>("--start-enabled", "Quest starts when game loads");
         var runOnceOption = new Option<bool>("--run-once", "Quest runs only once");
         var priorityOption = new Option<byte>("--priority", getDefaultValue: () => 50, description: "Quest priority (0-255)");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-quest", "Add a quest record to a plugin")
         {
@@ -156,11 +160,22 @@ public static class EspCommands
             nameOption,
             startEnabledOption,
             runOnceOption,
-            priorityOption
+            priorityOption,
+            dryRunOption
         };
 
-        cmd.SetHandler((plugin, editorId, name, startEnabled, runOnce, priority, json, verbose) =>
+        cmd.SetHandler((context) =>
         {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var name = context.ParseResult.GetValueForOption(nameOption);
+            var startEnabled = context.ParseResult.GetValueForOption(startEnabledOption);
+            var runOnce = context.ParseResult.GetValueForOption(runOnceOption);
+            var priority = context.ParseResult.GetValueForOption(priorityOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
             var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
@@ -186,7 +201,17 @@ public static class EspCommands
             builder.WithPriority(priority);
 
             var quest = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             if (json)
             {
@@ -199,7 +224,8 @@ public static class EspCommands
                         {
                             editorId = quest.EditorID,
                             formId = quest.FormKey.ToString(),
-                            name = quest.Name?.String
+                            name = quest.Name?.String,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -211,15 +237,16 @@ public static class EspCommands
             }
             else if (saveResult.Success)
             {
-                Console.WriteLine($"Added quest: {quest.EditorID} ({quest.FormKey})");
+                var msg = $"Added quest: {quest.EditorID} ({quest.FormKey})";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
             }
             else
             {
                 Console.Error.WriteLine($"Error: {saveResult.Error}");
                 Environment.ExitCode = 1;
             }
-        }, pluginArg, editorIdArg, nameOption, startEnabledOption, runOnceOption, priorityOption,
-           _jsonOption, _verboseOption);
+        });
 
         return cmd;
     }
@@ -236,10 +263,11 @@ public static class EspCommands
             description: "Effect preset: damage-health, restore-health, damage-magicka, restore-magicka, damage-stamina, restore-stamina, fortify-health, fortify-magicka, fortify-stamina, fortify-armor, fortify-attack");
         var magnitudeOption = new Option<float>("--magnitude", getDefaultValue: () => 25, description: "Effect magnitude (damage/heal amount or buff value)");
         var durationOption = new Option<int>("--duration", getDefaultValue: () => 0, description: "Effect duration in seconds (0 = instant)");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-spell", "Add a spell record to a plugin")
         {
-            pluginArg, editorIdArg, nameOption, typeOption, costOption, effectOption, magnitudeOption, durationOption
+            pluginArg, editorIdArg, nameOption, typeOption, costOption, effectOption, magnitudeOption, durationOption, dryRunOption
         };
 
         cmd.SetHandler((context) =>
@@ -252,6 +280,7 @@ public static class EspCommands
             var effect = context.ParseResult.GetValueForOption(effectOption);
             var magnitude = context.ParseResult.GetValueForOption(magnitudeOption);
             var duration = context.ParseResult.GetValueForOption(durationOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
             var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
@@ -314,7 +343,17 @@ public static class EspCommands
             }
 
             var spell = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             var effectCount = spell.Effects.Count;
             if (json)
@@ -329,7 +368,8 @@ public static class EspCommands
                             editorId = spell.EditorID,
                             formId = spell.FormKey.ToString(),
                             name = spell.Name?.String,
-                            effectCount
+                            effectCount,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -346,6 +386,7 @@ public static class EspCommands
                     msg += $" [{effectCount} effect(s)]";
                 else
                     msg += " [No effects - spell will do nothing! Use --effect to add one]";
+                if (dryRun) msg += " [DRY RUN - not saved]";
                 Console.WriteLine(msg);
             }
             else
@@ -365,16 +406,18 @@ public static class EspCommands
         var typeOption = new Option<string>("--type", getDefaultValue: () => "float",
             description: "Global type: short, long, float");
         var valueOption = new Option<float>("--value", getDefaultValue: () => 0, description: "Initial value");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-global", "Add a global variable to a plugin")
         {
             pluginArg,
             editorIdArg,
             typeOption,
-            valueOption
+            valueOption,
+            dryRunOption
         };
 
-        cmd.SetHandler((plugin, editorId, type, value, json, verbose) =>
+        cmd.SetHandler((plugin, editorId, type, value, dryRun, json, verbose) =>
         {
             var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
@@ -403,7 +446,17 @@ public static class EspCommands
             }
 
             var global = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             // Get the value from the concrete global type
             var globalValue = global switch
@@ -425,7 +478,8 @@ public static class EspCommands
                         {
                             editorId = global.EditorID,
                             formId = global.FormKey.ToString(),
-                            value = globalValue
+                            value = globalValue,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -437,14 +491,16 @@ public static class EspCommands
             }
             else if (saveResult.Success)
             {
-                Console.WriteLine($"Added global: {global.EditorID} ({global.FormKey}) = {globalValue}");
+                var msg = $"Added global: {global.EditorID} ({global.FormKey}) = {globalValue}";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
             }
             else
             {
                 Console.Error.WriteLine($"Error: {saveResult.Error}");
                 Environment.ExitCode = 1;
             }
-        }, pluginArg, editorIdArg, typeOption, valueOption,
+        }, pluginArg, editorIdArg, typeOption, valueOption, dryRunOption,
            _jsonOption, _verboseOption);
 
         return cmd;
@@ -599,10 +655,11 @@ public static class EspCommands
         var weightOption = new Option<float>("--weight", getDefaultValue: () => 5, description: "Weight");
         var modelOption = new Option<string?>("--model",
             description: "Model path relative to Data/Meshes (e.g., Weapons\\Iron\\IronSword.nif). Use 'iron-sword', 'steel-sword', 'iron-dagger', or 'hunting-bow' for vanilla presets.");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-weapon", "Add a weapon record to a plugin")
         {
-            pluginArg, editorIdArg, nameOption, typeOption, damageOption, valueOption, weightOption, modelOption
+            pluginArg, editorIdArg, nameOption, typeOption, damageOption, valueOption, weightOption, modelOption, dryRunOption
         };
 
         cmd.SetHandler((context) =>
@@ -615,6 +672,7 @@ public static class EspCommands
             var value = context.ParseResult.GetValueForOption(valueOption);
             var weight = context.ParseResult.GetValueForOption(weightOption);
             var model = context.ParseResult.GetValueForOption(modelOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
             var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
@@ -660,7 +718,17 @@ public static class EspCommands
             }
 
             var weapon = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             if (json)
             {
@@ -674,7 +742,8 @@ public static class EspCommands
                             editorId = weapon.EditorID,
                             formId = weapon.FormKey.ToString(),
                             name = weapon.Name?.String,
-                            model = weapon.Model?.File.DataRelativePath
+                            model = weapon.Model?.File.DataRelativePath,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -686,7 +755,9 @@ public static class EspCommands
             }
             else if (saveResult.Success)
             {
-                Console.WriteLine($"Added weapon: {weapon.EditorID} ({weapon.FormKey})" + (weapon.Model != null ? $" [Model: {weapon.Model.File}]" : " [No model - weapon will be invisible!]"));
+                var msg = $"Added weapon: {weapon.EditorID} ({weapon.FormKey})" + (weapon.Model != null ? $" [Model: {weapon.Model.File}]" : " [No model - weapon will be invisible!]");
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
             }
             else
             {
@@ -711,10 +782,11 @@ public static class EspCommands
         var valueOption = new Option<uint>("--value", getDefaultValue: () => 100, description: "Base value");
         var modelOption = new Option<string?>("--model",
             description: "Model path relative to Data/Meshes. Presets: 'iron-cuirass', 'iron-helmet', 'iron-gauntlets', 'iron-boots', 'iron-shield'");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-armor", "Add an armor record to a plugin")
         {
-            pluginArg, editorIdArg, nameOption, typeOption, slotOption, ratingOption, valueOption, modelOption
+            pluginArg, editorIdArg, nameOption, typeOption, slotOption, ratingOption, valueOption, modelOption, dryRunOption
         };
 
         cmd.SetHandler((context) =>
@@ -727,6 +799,7 @@ public static class EspCommands
             var rating = context.ParseResult.GetValueForOption(ratingOption);
             var value = context.ParseResult.GetValueForOption(valueOption);
             var model = context.ParseResult.GetValueForOption(modelOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
             var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
@@ -774,7 +847,17 @@ public static class EspCommands
             }
 
             var armor = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             var hasModel = armor.WorldModel?.Male?.Model?.File != null;
             if (json)
@@ -789,7 +872,8 @@ public static class EspCommands
                             editorId = armor.EditorID,
                             formId = armor.FormKey.ToString(),
                             name = armor.Name?.String,
-                            model = armor.WorldModel?.Male?.Model?.File?.DataRelativePath
+                            model = armor.WorldModel?.Male?.Model?.File?.DataRelativePath,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -801,7 +885,9 @@ public static class EspCommands
             }
             else if (saveResult.Success)
             {
-                Console.WriteLine($"Added armor: {armor.EditorID} ({armor.FormKey})" + (hasModel ? $" [Model: {armor.WorldModel?.Male?.Model?.File}]" : " [No model - armor will be invisible!]"));
+                var msg = $"Added armor: {armor.EditorID} ({armor.FormKey})" + (hasModel ? $" [Model: {armor.WorldModel?.Male?.Model?.File}]" : " [No model - armor will be invisible!]");
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
             }
             else
             {
@@ -822,15 +908,27 @@ public static class EspCommands
         var femaleOption = new Option<bool>("--female", "NPC is female");
         var essentialOption = new Option<bool>("--essential", "NPC is essential");
         var uniqueOption = new Option<bool>("--unique", "NPC is unique");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-npc", "Add an NPC record to a plugin")
         {
-            pluginArg, editorIdArg, nameOption, levelOption, femaleOption, essentialOption, uniqueOption
+            pluginArg, editorIdArg, nameOption, levelOption, femaleOption, essentialOption, uniqueOption, dryRunOption
         };
 
-        cmd.SetHandler((plugin, editorId, name, level, female, essential, unique, json) =>
+        cmd.SetHandler((context) =>
         {
-            var logger = CreateLogger(json, false);
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var name = context.ParseResult.GetValueForOption(nameOption);
+            var level = context.ParseResult.GetValueForOption(levelOption);
+            var female = context.ParseResult.GetValueForOption(femaleOption);
+            var essential = context.ParseResult.GetValueForOption(essentialOption);
+            var unique = context.ParseResult.GetValueForOption(uniqueOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
             var loadResult = service.LoadPluginForEdit(plugin);
@@ -845,7 +943,17 @@ public static class EspCommands
             if (unique) builder.AsUnique();
 
             var npc = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             if (json)
             {
@@ -858,7 +966,8 @@ public static class EspCommands
                         {
                             editorId = npc.EditorID,
                             formId = npc.FormKey.ToString(),
-                            name = npc.Name?.String
+                            name = npc.Name?.String,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -870,14 +979,16 @@ public static class EspCommands
             }
             else if (saveResult.Success)
             {
-                Console.WriteLine($"Added NPC: {npc.EditorID} ({npc.FormKey})");
+                var msg = $"Added NPC: {npc.EditorID} ({npc.FormKey})";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
             }
             else
             {
                 Console.Error.WriteLine($"Error: {saveResult.Error}");
                 Environment.ExitCode = 1;
             }
-        }, pluginArg, editorIdArg, nameOption, levelOption, femaleOption, essentialOption, uniqueOption, _jsonOption);
+        });
 
         return cmd;
     }
@@ -890,14 +1001,25 @@ public static class EspCommands
         var textOption = new Option<string?>("--text", "Book text content");
         var valueOption = new Option<uint>("--value", getDefaultValue: () => 10, description: "Base value");
         var weightOption = new Option<float>("--weight", getDefaultValue: () => 1, description: "Weight");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-book", "Add a book record to a plugin")
         {
-            pluginArg, editorIdArg, nameOption, textOption, valueOption, weightOption
+            pluginArg, editorIdArg, nameOption, textOption, valueOption, weightOption, dryRunOption
         };
 
-        cmd.SetHandler((plugin, editorId, name, text, value, weight, json, verbose) =>
+        cmd.SetHandler((context) =>
         {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var editorId = context.ParseResult.GetValueForArgument(editorIdArg);
+            var name = context.ParseResult.GetValueForOption(nameOption);
+            var text = context.ParseResult.GetValueForOption(textOption);
+            var value = context.ParseResult.GetValueForOption(valueOption);
+            var weight = context.ParseResult.GetValueForOption(weightOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
             var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
@@ -913,7 +1035,17 @@ public static class EspCommands
             if (!string.IsNullOrEmpty(text)) builder.WithText(text);
 
             var book = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             if (json)
             {
@@ -926,7 +1058,8 @@ public static class EspCommands
                         {
                             editorId = book.EditorID,
                             formId = book.FormKey.ToString(),
-                            name = book.Name?.String
+                            name = book.Name?.String,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -938,14 +1071,16 @@ public static class EspCommands
             }
             else if (saveResult.Success)
             {
-                Console.WriteLine($"Added book: {book.EditorID} ({book.FormKey})");
+                var msg = $"Added book: {book.EditorID} ({book.FormKey})";
+                if (dryRun) msg += " [DRY RUN - not saved]";
+                Console.WriteLine(msg);
             }
             else
             {
                 Console.Error.WriteLine($"Error: {saveResult.Error}");
                 Environment.ExitCode = 1;
             }
-        }, pluginArg, editorIdArg, nameOption, textOption, valueOption, weightOption, _jsonOption, _verboseOption);
+        });
 
         return cmd;
     }
@@ -961,10 +1096,11 @@ public static class EspCommands
         var effectOption = new Option<string?>("--effect",
             description: "Effect preset: weapon-damage, damage-reduction, armor, spell-cost, spell-power, spell-duration, sneak-attack, pickpocket, prices");
         var bonusOption = new Option<float>("--bonus", getDefaultValue: () => 25, description: "Bonus percentage (e.g., 25 for +25%)");
+        var dryRunOption = new Option<bool>("--dry-run", "Preview changes without saving");
 
         var cmd = new Command("add-perk", "Add a perk record to a plugin")
         {
-            pluginArg, editorIdArg, nameOption, descOption, playableOption, hiddenOption, effectOption, bonusOption
+            pluginArg, editorIdArg, nameOption, descOption, playableOption, hiddenOption, effectOption, bonusOption, dryRunOption
         };
 
         cmd.SetHandler((context) =>
@@ -977,6 +1113,7 @@ public static class EspCommands
             var hidden = context.ParseResult.GetValueForOption(hiddenOption);
             var effect = context.ParseResult.GetValueForOption(effectOption);
             var bonus = context.ParseResult.GetValueForOption(bonusOption);
+            var dryRun = context.ParseResult.GetValueForOption(dryRunOption);
             var json = context.ParseResult.GetValueForOption(_jsonOption);
             var verbose = context.ParseResult.GetValueForOption(_verboseOption);
 
@@ -1017,7 +1154,17 @@ public static class EspCommands
             }
 
             var perk = builder.Build();
-            var saveResult = service.SavePlugin(mod, plugin);
+
+            // Conditional save based on dry-run
+            Result saveResult;
+            if (dryRun)
+            {
+                saveResult = Result.Ok($"{plugin} (DRY RUN - not saved)");
+            }
+            else
+            {
+                saveResult = service.SavePlugin(mod, plugin);
+            }
 
             var effectCount = perk.Effects.Count;
             if (json)
@@ -1032,7 +1179,8 @@ public static class EspCommands
                             editorId = perk.EditorID,
                             formId = perk.FormKey.ToString(),
                             name = perk.Name?.String,
-                            effectCount
+                            effectCount,
+                            dryRun
                         }
                     }.ToJson());
                 }
@@ -1049,6 +1197,7 @@ public static class EspCommands
                     msg += $" [{effectCount} entry/entries]";
                 else
                     msg += " [No entries - perk will do nothing! Use --effect to add one]";
+                if (dryRun) msg += " [DRY RUN - not saved]";
                 Console.WriteLine(msg);
             }
             else
@@ -1143,6 +1292,275 @@ public static class EspCommands
             else
             { Console.Error.WriteLine($"Error: {saveResult.Error}"); Environment.ExitCode = 1; }
         }, sourceArg, targetArg, outputOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateDebugTypesCommand()
+    {
+        var patternArg = new Argument<string?>(
+            "pattern",
+            () => null,
+            "Pattern to filter types (e.g., 'Quest*', 'QuestAlias')");
+        var allOption = new Option<bool>("--all", "Show all Skyrim record types");
+
+        var cmd = new Command("debug-types", "Show Mutagen type structures for debugging")
+        {
+            patternArg,
+            allOption
+        };
+
+        cmd.SetHandler((pattern, all, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new TypeInspectionService(logger);
+
+            var result = service.GetAllMutagenTypes(all ? "*" : pattern);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success)
+            {
+                foreach (var type in result.Value!)
+                {
+                    Console.WriteLine($"\n{type.Name} ({type.FullName})");
+                    Console.WriteLine($"  Type: {(type.IsInterface ? "Interface" : "Class")}");
+
+                    if (type.Properties.Count > 0)
+                    {
+                        Console.WriteLine("  Properties:");
+                        foreach (var prop in type.Properties)
+                        {
+                            var nullable = prop.IsNullable ? "?" : "";
+                            var collection = prop.IsCollection ? "[]" : "";
+                            Console.WriteLine($"    {prop.Name}: {prop.Type}{nullable}{collection}");
+                        }
+                    }
+
+                    if (type.Notes.Count > 0)
+                    {
+                        Console.WriteLine("  Notes:");
+                        foreach (var note in type.Notes)
+                            Console.WriteLine($"    - {note}");
+                    }
+                }
+
+                Console.WriteLine($"\nFound {result.Value.Count} type(s)");
+            }
+            else
+            {
+                OutputError(result.Error!, json, result.Suggestions);
+            }
+        }, patternArg, allOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateAutoFillCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var questOption = new Option<string>("--quest", "Quest EditorID") { IsRequired = true };
+        var aliasOption = new Option<string?>("--alias", "Alias name (for alias scripts)");
+        var scriptOption = new Option<string>("--script", "Script name") { IsRequired = true };
+        var scriptDirOption = new Option<string>("--script-dir", "PSC source directory") { IsRequired = true };
+        var dataFolderOption = new Option<string>("--data-folder", "Skyrim Data folder") { IsRequired = true };
+        var noCacheOption = new Option<bool>("--no-cache", "Don't use cached link cache");
+
+        var cmd = new Command("auto-fill", "Auto-fill script properties from PSC files")
+        {
+            pluginArg,
+            questOption,
+            aliasOption,
+            scriptOption,
+            scriptDirOption,
+            dataFolderOption,
+            noCacheOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var quest = context.ParseResult.GetValueForOption(questOption);
+            var alias = context.ParseResult.GetValueForOption(aliasOption);
+            var script = context.ParseResult.GetValueForOption(scriptOption);
+            var scriptDir = context.ParseResult.GetValueForOption(scriptDirOption);
+            var dataFolder = context.ParseResult.GetValueForOption(dataFolderOption);
+            var noCache = context.ParseResult.GetValueForOption(noCacheOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var pluginService = new PluginService(logger);
+            var linkCacheManager = new LinkCacheManager(logger);
+            var autoFillService = new AutoFillService(logger, linkCacheManager);
+
+            // Clear cache if requested
+            if (noCache)
+            {
+                linkCacheManager.ClearCache();
+            }
+
+            // Load plugin
+            var loadResult = pluginService.LoadPluginForEdit(plugin);
+            if (!loadResult.Success)
+            {
+                OutputError(loadResult.Error!, json, loadResult.Suggestions);
+                return;
+            }
+
+            var mod = loadResult.Value!;
+
+            // Get PSC file path
+            var pscPath = Path.Combine(scriptDir, $"{script}.psc");
+
+            // Auto-fill based on whether alias is specified
+            Result<AutoFillResult> result;
+            if (!string.IsNullOrEmpty(alias))
+            {
+                result = autoFillService.AutoFillAliasScript(mod, quest, alias, script, pscPath, dataFolder);
+            }
+            else
+            {
+                result = autoFillService.AutoFillQuestScript(mod, quest, script, pscPath, dataFolder);
+            }
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success)
+            {
+                var data = result.Value!;
+                Console.WriteLine($"Auto-fill complete for {data.ScriptName}:");
+                Console.WriteLine($"  Filled: {data.FilledCount} properties");
+                Console.WriteLine($"  Skipped: {data.SkippedCount} properties (primitives or already set)");
+                Console.WriteLine($"  Not found: {data.NotFoundCount} properties (not in Skyrim.esm)");
+
+                if (data.FilledProperties.Count > 0)
+                {
+                    Console.WriteLine("\nFilled properties:");
+                    foreach (var prop in data.FilledProperties)
+                        Console.WriteLine($"  - {prop}");
+                }
+
+                if (data.NotFoundProperties.Count > 0)
+                {
+                    Console.WriteLine("\nNot found in Skyrim.esm:");
+                    foreach (var prop in data.NotFoundProperties)
+                        Console.WriteLine($"  - {prop}");
+                }
+
+                // Save plugin
+                var saveResult = pluginService.SavePlugin(mod, plugin);
+                if (saveResult.Success)
+                {
+                    Console.WriteLine($"\nSaved: {plugin}");
+                }
+                else
+                {
+                    OutputError(saveResult.Error!, json);
+                }
+            }
+            else
+            {
+                OutputError(result.Error!, json, result.Suggestions);
+            }
+        });
+
+        return cmd;
+    }
+
+    private static Command CreateAutoFillAllCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var scriptDirOption = new Option<string>("--script-dir", "PSC source directory") { IsRequired = true };
+        var dataFolderOption = new Option<string>("--data-folder", "Skyrim Data folder") { IsRequired = true };
+        var noCacheOption = new Option<bool>("--no-cache", "Don't use cached link cache");
+
+        var cmd = new Command("auto-fill-all", "Auto-fill all scripts in the mod")
+        {
+            pluginArg,
+            scriptDirOption,
+            dataFolderOption,
+            noCacheOption
+        };
+
+        cmd.SetHandler((plugin, scriptDir, dataFolder, noCache, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var pluginService = new PluginService(logger);
+            var linkCacheManager = new LinkCacheManager(logger);
+            var autoFillService = new AutoFillService(logger, linkCacheManager);
+            var bulkService = new BulkAutoFillService(logger, autoFillService, linkCacheManager);
+
+            // Clear cache if requested
+            if (noCache)
+            {
+                linkCacheManager.ClearCache();
+            }
+
+            // Load plugin
+            var loadResult = pluginService.LoadPluginForEdit(plugin);
+            if (!loadResult.Success)
+            {
+                OutputError(loadResult.Error!, json, loadResult.Suggestions);
+                return;
+            }
+
+            var mod = loadResult.Value!;
+
+            // Perform bulk auto-fill
+            var result = bulkService.AutoFillAll(mod, scriptDir, dataFolder);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success)
+            {
+                var data = result.Value!;
+                Console.WriteLine($"Bulk auto-fill complete:");
+                Console.WriteLine($"  Scripts processed: {data.TotalScripts}");
+                Console.WriteLine($"  Scripts with filled properties: {data.FilledScripts}");
+                Console.WriteLine($"  Scripts skipped (no PSC): {data.SkippedScripts}");
+                Console.WriteLine($"  Total properties filled: {data.TotalPropertiesFilled}");
+
+                if (data.Errors.Count > 0)
+                {
+                    Console.WriteLine("\nErrors:");
+                    foreach (var error in data.Errors.Take(10))
+                        Console.WriteLine($"  - {error}");
+                    if (data.Errors.Count > 10)
+                        Console.WriteLine($"  ... and {data.Errors.Count - 10} more");
+                }
+
+                if (data.Details.Count > 0 && verbose)
+                {
+                    Console.WriteLine("\nDetails:");
+                    foreach (var detail in data.Details.Take(20))
+                        Console.WriteLine($"  {detail}");
+                    if (data.Details.Count > 20)
+                        Console.WriteLine($"  ... and {data.Details.Count - 20} more");
+                }
+
+                // Save plugin
+                var saveResult = pluginService.SavePlugin(mod, plugin);
+                if (saveResult.Success)
+                {
+                    Console.WriteLine($"\nSaved: {plugin}");
+                }
+                else
+                {
+                    OutputError(saveResult.Error!, json);
+                }
+            }
+            else
+            {
+                OutputError(result.Error!, json, result.Suggestions);
+            }
+        }, pluginArg, scriptDirOption, dataFolderOption, noCacheOption, _jsonOption, _verboseOption);
 
         return cmd;
     }

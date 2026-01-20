@@ -182,4 +182,52 @@ public class ScriptBuilder
         _script.Properties.Add(prop);
         return this;
     }
+
+    /// <summary>
+    /// Add an object property (FormKey reference).
+    /// </summary>
+    public ScriptBuilder WithObjectProperty(string name, FormKey formKey)
+    {
+        var prop = new ScriptObjectProperty
+        {
+            Name = name,
+            Flags = ScriptProperty.Flag.Edited,
+            Object = formKey.ToNullableLink<ISkyrimMajorRecordGetter>()
+        };
+        _script.Properties.Add(prop);
+        return this;
+    }
+
+    /// <summary>
+    /// Add an array property (list of FormKey references).
+    /// NOTE: Currently simplified to add first element only.
+    /// Full array support requires additional Mutagen research.
+    /// </summary>
+    public ScriptBuilder WithArrayProperty(string name, List<FormKey> formKeys)
+    {
+        if (formKeys.Count == 0)
+        {
+            throw new ArgumentException("Array property requires at least one FormKey", nameof(formKeys));
+        }
+
+        // For now, use the first element as a single object property
+        // TODO: Research proper Mutagen array property implementation
+        var prop = new ScriptObjectProperty
+        {
+            Name = name,
+            Flags = ScriptProperty.Flag.Edited,
+            Object = formKeys[0].ToNullableLink<ISkyrimMajorRecordGetter>()
+        };
+
+        _script.Properties.Add(prop);
+        return this;
+    }
+
+    /// <summary>
+    /// Get the underlying script entry for direct manipulation.
+    /// </summary>
+    public ScriptEntry GetScript()
+    {
+        return _script;
+    }
 }

@@ -280,24 +280,31 @@ This prevents errors like matching a Location instead of a Keyword when both hav
 ### Basic Usage
 
 ```bash
-# Auto-detect properties from PSC files (RECOMMENDED)
+# Auto-fill a specific script (RECOMMENDED)
 dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
   --quest MyQuest \
-  --mod-folder "path/to/mod" \
+  --script MyQuestScript \
+  --script-dir "./Scripts/Source" \
   --data-folder "path/to/Skyrim/Data"
 
-# Target specific alias
+# Target alias script
 dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
   --quest MyQuest \
   --alias FollowerAlias01 \
-  --mod-folder "path/to/mod" \
+  --script MyAliasScript \
+  --script-dir "./Scripts/Source" \
   --data-folder "path/to/Skyrim/Data"
 
-# Specify properties manually (no type filtering)
-dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
-  --quest MyQuest \
-  --properties "LocTypeInn,LocTypeDungeon,LocTypeClearable" \
+# Bulk auto-fill ALL scripts in mod (most efficient)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill-all "MyMod.esp" \
+  --script-dir "./Scripts/Source" \
   --data-folder "path/to/Skyrim/Data"
+
+# Disable link cache (if you need fresh data)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill-all "MyMod.esp" \
+  --script-dir "./Scripts/Source" \
+  --data-folder "path/to/Skyrim/Data" \
+  --no-cache
 ```
 
 ### How Type-Aware Auto-Fill Works
@@ -340,6 +347,28 @@ With type filtering, only the Keyword is matched.
 | `FormList` | Form lists only |
 | And 30+ more types... | |
 
+### Array Property Support
+
+Auto-fill now supports array properties:
+
+```papyrus
+Keyword[] Property AllKeywords Auto     ; Creates ScriptArrayProperty
+Location[] Property AllLocations Auto   ; Creates ScriptArrayProperty with multiple FormKeys
+```
+
+**Note:** Currently, array properties are filled with a single matching element. For multiple elements, you'll need to add them manually with `esp set-property`.
+
+### Performance: Link Cache Caching
+
+The auto-fill system uses a cached link cache for significant performance improvements:
+
+- **First run**: Loads Skyrim.esm, Update.esm, DLCs (~2-3 seconds)
+- **Subsequent runs**: Uses cached link cache (~0.3 seconds)
+- **Cache timeout**: 5 minutes
+- **Force refresh**: Use `--no-cache` flag
+
+**Best Practice:** Use `esp auto-fill-all` for bulk operations to maximize cache reuse across all scripts.
+
 ### When to Use Auto-Fill vs Manual Properties
 
 | Scenario | Approach |
@@ -363,10 +392,81 @@ dotnet run --project src/SpookysAutomod.Cli -- esp set-property "MyMod.esp" \
   --property ModEnabled --value "MyMod.esp|0x800" --type object
 
 # 3. Auto-fill Skyrim.esm references (reads types from PSC)
+# Option A: Single script
 dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill "MyMod.esp" \
   --quest MyMod_Quest \
-  --mod-folder "path/to/mod" \
+  --script MyQuestScript \
+  --script-dir "./Scripts/Source" \
   --data-folder "path/to/Skyrim/Data"
+
+# Option B: All scripts at once (RECOMMENDED for multiple scripts)
+dotnet run --project src/SpookysAutomod.Cli -- esp auto-fill-all "MyMod.esp" \
+  --script-dir "./Scripts/Source" \
+  --data-folder "path/to/Skyrim/Data"
+```
+
+---
+
+## Dry-Run Mode and Debugging
+
+### Preview Changes with Dry-Run
+
+All `add-*` commands support `--dry-run` to preview changes without saving:
+
+```bash
+# Preview weapon creation
+dotnet run --project src/SpookysAutomod.Cli -- esp add-weapon "MyMod.esp" "TestSword" \
+  --name "Test Blade" --damage 30 --model iron-sword --dry-run
+
+# Preview quest creation
+dotnet run --project src/SpookysAutomod.Cli -- esp add-quest "MyMod.esp" "TestQuest" \
+  --name "Test Quest" --start-enabled --dry-run
+
+# Preview with JSON output
+dotnet run --project src/SpookysAutomod.Cli -- esp add-spell "MyMod.esp" "TestSpell" \
+  --name "Test Spell" --effect damage-health --magnitude 50 --dry-run --json
+```
+
+**Use Cases:**
+- Validate FormIDs before committing
+- Test command syntax
+- Preview record structure
+- Verify model paths and presets
+
+### Debug Mutagen Types
+
+Use `esp debug-types` to inspect Mutagen's type system:
+
+```bash
+# Show specific type
+dotnet run --project src/SpookysAutomod.Cli -- esp debug-types "QuestAlias"
+
+# Pattern matching
+dotnet run --project src/SpookysAutomod.Cli -- esp debug-types "Quest*"
+
+# Show all types (verbose)
+dotnet run --project src/SpookysAutomod.Cli -- esp debug-types --all
+
+# JSON output for parsing
+dotnet run --project src/SpookysAutomod.Cli -- esp debug-types "QuestFragmentAlias" --json
+```
+
+**Output includes:**
+- Property names and types
+- Nullability and collection types
+- Critical notes (e.g., "VirtualMachineAdapter NOT on QuestAlias!")
+
+**Example Output:**
+```
+QuestAlias (Mutagen.Bethesda.Skyrim.QuestAlias)
+  Type: Class
+  Properties:
+    ID: UInt16
+    Name: String?
+    Flags: QuestAlias.Flag
+  Notes:
+    - VirtualMachineAdapter NOT on QuestAlias!
+    - Use QuestFragmentAlias in quest.VirtualMachineAdapter.Aliases instead
 ```
 
 ---
