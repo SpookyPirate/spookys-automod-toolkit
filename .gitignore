@@ -38,8 +38,6 @@ skyrim-script-headers/*.flg
 Thumbs.db
 
 # Claude context (personal/local context files)
-claude.md
-CLAUDE.md
 tmpclaude-*
 
 # Other
