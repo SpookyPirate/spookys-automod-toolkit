@@ -1,8 +1,8 @@
 # Spooky's AutoMod Toolkit - LLM Initialization Prompt
 
-**Version:** 1.5.0
+**Version:** 1.6.0
 
-**Last Updated:** 2026-01-19
+**Last Updated:** 2026-01-20
 
 **Purpose:** Initialize AI assistants to work effectively with the toolkit
 

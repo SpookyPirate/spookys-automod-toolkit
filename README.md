@@ -434,17 +434,22 @@ papyrus compile "./Debug/Source" --output "./Debug/Scripts" --headers "C:/Skyrim
 
 ### Works Immediately
 
-| Type      | Description                                |
-| --------- | ------------------------------------------ |
-| Books     | Custom text, lore, journals                |
-| Quests    | Quest framework for scripted content       |
-| Globals   | Configuration variables                    |
-| Factions  | Tracking groups, crime factions            |
-| Quest Aliases | Reference containers with scripts      |
-| Spells    | Damage, heal, buff spells (use `--effect`) |
-| Perks     | Combat, magic, stealth perks (`--effect`)  |
-| MCM Menus | Mod configuration menus                    |
-| Scripts   | Papyrus script templates                   |
+| Type           | Description                                      |
+| -------------- | ------------------------------------------------ |
+| Books          | Custom text, lore, journals                      |
+| Quests         | Quest framework for scripted content             |
+| Globals        | Configuration variables                          |
+| Factions       | Tracking groups, crime factions                  |
+| Quest Aliases  | Reference containers with scripts                |
+| Spells         | Damage, heal, buff spells (use `--effect`)       |
+| Perks          | Combat, magic, stealth perks (`--effect`)        |
+| Leveled Items  | Random loot distribution with presets            |
+| Form Lists     | Collections of records for scripts               |
+| Encounter Zones| Level scaling zones with presets                 |
+| Locations      | Named areas for quests and fast travel           |
+| Outfits        | NPC equipment sets with presets                  |
+| MCM Menus      | Mod configuration menus                          |
+| Scripts        | Papyrus script templates                         |
 
 ### Needs `--model` Flag
 

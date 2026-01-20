@@ -1,6 +1,6 @@
 # LLM Guide for Spooky's AutoMod Toolkit
 
-**Version:** 1.5.0
+**Version:** 1.6.0
 **Purpose:** Comprehensive technical reference for workflow patterns and advanced features
 
 ---
