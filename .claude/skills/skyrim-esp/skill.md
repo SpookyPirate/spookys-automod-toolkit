@@ -135,12 +135,6 @@ dotnet run --project src/SpookysAutomod.Cli -- esp info "<plugin>"
 dotnet run --project src/SpookysAutomod.Cli -- esp list-masters "<plugin>"
 ```
 
-**Detailed Analysis:**
-```bash
-dotnet run --project src/SpookysAutomod.Cli -- esp analyze "<plugin>" --json
-```
-Shows all records, quest scripts, alias scripts, properties, and more.
-
 **Type Inspection (Debug Mutagen Types):**
 ```bash
 dotnet run --project src/SpookysAutomod.Cli -- esp debug-types "<pattern>" --json

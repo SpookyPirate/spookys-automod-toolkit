@@ -39,8 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Faction support**
     - `esp add-faction` - Create faction records
     - Configure flags: HiddenFromPC, TrackCrime, etc.
-- **Enhanced analysis**
-    - `esp analyze` - Detailed plugin analysis including aliases, scripts, and properties
 
 ### Changed
 
