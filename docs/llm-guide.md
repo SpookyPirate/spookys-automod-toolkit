@@ -228,6 +228,102 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-book "MyLoreMod.esp" "MLM
 dotnet run --project src/SpookysAutomod.Cli -- esp add-book "MyLoreMod.esp" "MLM_Journal" --name "Adventurer's Journal" --text "Day 1: I set out from Whiterun today. The road was long..." --value 10 --json
 ```
 
+### Pattern 7: Create Leveled Lists and Encounter Zones
+
+Leveled lists distribute random loot, and encounter zones control level scaling:
+
+```bash
+# Create plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "LeveledContent.esp" --light --json
+
+# Create a leveled item list for treasure chests
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "LeveledContent.esp" "LC_TreasureChest" --chance-none 25 --preset low-treasure --json
+
+# Or manually add entries (item,level,count)
+dotnet run --project src/SpookysAutomod.Cli -- esp add-leveled-item "LeveledContent.esp" "LC_BossList" --chance-none 5 --add-entry "GoldBase,1,100" --add-entry "LockPick,5,3" --json
+
+# Create encounter zones for dungeons
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "LeveledContent.esp" "LC_StarterDungeon" --preset low-level --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "LeveledContent.esp" "LC_EndGameZone" --min-level 30 --max-level 50 --never-resets --json
+
+# Create fully scaling zone (1-unlimited)
+dotnet run --project src/SpookysAutomod.Cli -- esp add-encounter-zone "LeveledContent.esp" "LC_QuestZone" --preset scaling --json
+```
+
+**LeveledItem Presets:**
+- `low-treasure` - 25% chance none, low-level items (starter areas)
+- `medium-treasure` - 15% chance none, mid-level items (dungeons)
+- `high-treasure` - 5% chance none, high-value items (boss chests)
+- `guaranteed-loot` - 0% chance none, gives all items
+
+**EncounterZone Presets:**
+- `low-level` - Min 1, Max 10 (starter content)
+- `mid-level` - Min 10, Max 30 (standard dungeons)
+- `high-level` - Min 30, Max 50 (end-game content)
+- `scaling` - Min 1, Max unlimited (quest content)
+
+**Flags:**
+- `--never-resets` - Enemies stay defeated
+- `--disable-combat-boundary` - NPCs can pursue anywhere
+
+### Pattern 8: Create Locations and Outfits
+
+Locations define named areas for quests and fast travel. Outfits define NPC equipment sets:
+
+```bash
+# Create plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "WorldContent.esp" --light --json
+
+# Create locations with presets
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "WorldContent.esp" "WC_MyInn" --name "The Rusty Tankard" --preset inn --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "WorldContent.esp" "WC_PlayerHome" --name "Cozy Cottage" --preset dwelling --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "WorldContent.esp" "WC_MyDungeon" --name "Forgotten Crypt" --preset dungeon --json
+
+# Add custom keywords
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "WorldContent.esp" "WC_CustomLoc" --name "Special Place" --add-keyword "LocTypeCity" --json
+
+# Set parent location
+dotnet run --project src/SpookysAutomod.Cli -- esp add-location "WorldContent.esp" "WC_WhiterunShop" --name "My Shop" --parent-location "WhiterunHoldLocation" --json
+
+# Create NPC outfits with presets
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "WorldContent.esp" "WC_GuardOutfit" --preset guard --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "WorldContent.esp" "WC_FarmerOutfit" --preset farmer --json
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "WorldContent.esp" "WC_MageOutfit" --preset mage --json
+
+# Or add custom items
+dotnet run --project src/SpookysAutomod.Cli -- esp add-outfit "WorldContent.esp" "WC_CustomOutfit" --add-item "ArmorIronCuirass" --add-item "WeaponIronSword" --json
+```
+
+**Location Presets:**
+- `inn` - Adds LocTypeInn keyword (taverns, drinking establishments)
+- `city` - Adds LocTypeCity keyword (major walled settlements)
+- `dungeon` - Adds LocTypeDungeon keyword (caves, ruins)
+- `dwelling` - Adds LocTypeDwelling keyword (player homes, NPC houses)
+
+**Outfit Presets:**
+- `guard` - Iron armor + sword + shield
+- `farmer` - Basic clothing (farmer clothes, roughspun tunic)
+- `mage` - Mage robes + hood
+- `thief` - Leather armor set
+
+### Pattern 9: Create Form Lists for Scripts
+
+Form lists are collections of records used by scripts and conditions:
+
+```bash
+# Create plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp create "ScriptHelpers.esp" --light --json
+
+# Add form list with vanilla references
+dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "ScriptHelpers.esp" "SH_MetalKeywords" --add-form "Skyrim.esm:0x000896" --add-form "Skyrim.esm:0x000897" --json
+
+# Add form list with mod records
+dotnet run --project src/SpookysAutomod.Cli -- esp add-form-list "ScriptHelpers.esp" "SH_CustomWeapons" --add-form "WeaponEditorID1" --add-form "WeaponEditorID2" --json
+
+# Use in scripts: FormList Property MyList Auto
+# Then set property: --property MyList --value "ScriptHelpers.esp|0x800"
+```
+
 ---
 
 ## Script Properties and Form References
@@ -753,6 +849,11 @@ When success is false:
 | Add armor | `esp add-armor plugin editorId [--name] [--type] [--slot] [--model]` |
 | Add NPC | `esp add-npc plugin editorId [--name] [--level] [--essential]` |
 | Add book | `esp add-book plugin editorId [--name] [--text]` |
+| Add leveled item | `esp add-leveled-item plugin editorId [--chance-none] [--add-entry] [--preset]` |
+| Add form list | `esp add-form-list plugin editorId [--add-form]` |
+| Add encounter zone | `esp add-encounter-zone plugin editorId [--min-level] [--max-level] [--preset]` |
+| Add location | `esp add-location plugin editorId [--name] [--parent-location] [--preset]` |
+| Add outfit | `esp add-outfit plugin editorId [--add-item] [--preset]` |
 | Add alias | `esp add-alias plugin --quest id --name name [--script] [--flags]` |
 | Attach script | `esp attach-script plugin --quest id --script name` |
 | Attach alias script | `esp attach-alias-script plugin --quest id --alias name --script name` |

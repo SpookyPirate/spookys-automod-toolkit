@@ -366,6 +366,220 @@ esp add-book "MyMod.esp" "MyMod_Journal" --name "Adventurer's Journal" --text "D
 
 ---
 
+### add-leveled-item
+
+Add a leveled item list to a plugin for random loot distribution.
+
+```bash
+esp add-leveled-item <plugin> <editorId> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+| `editorId` | Unique Editor ID for the leveled item |
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--chance-none` | 0 | Percentage chance (0-100) the list returns nothing |
+| `--add-entry` | - | Add entry in format: `item,level,count` (can use multiple times) |
+| `--preset` | - | Apply preset configuration (see below) |
+| `--calculate-each` | false | Roll separately for each item count |
+| `--use-all` | false | Give all items in list |
+| `--dry-run` | false | Preview changes without saving |
+
+**Presets:**
+| Preset | Description |
+|--------|-------------|
+| `low-treasure` | 25% chance none, good for starter areas |
+| `medium-treasure` | 15% chance none, standard dungeon loot |
+| `high-treasure` | 5% chance none, boss chest rewards |
+| `guaranteed-loot` | 0% chance none, always gives all items |
+
+**Examples:**
+```bash
+# Using preset for treasure chest
+esp add-leveled-item "MyMod.esp" "MyMod_TreasureChest" --preset low-treasure
+
+# Custom list with entries
+esp add-leveled-item "MyMod.esp" "MyMod_BossLoot" --chance-none 5 --add-entry "GoldBase,1,100" --add-entry "LockPick,5,3"
+
+# Guaranteed multi-item drop
+esp add-leveled-item "MyMod.esp" "MyMod_QuestReward" --chance-none 0 --use-all --add-entry "WeaponSword,10,1"
+```
+
+---
+
+### add-form-list
+
+Add a form list to a plugin for script property collections.
+
+```bash
+esp add-form-list <plugin> <editorId> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+| `editorId` | Unique Editor ID for the form list |
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--add-form` | - | Add form by EditorID or FormKey (can use multiple times) |
+| `--dry-run` | false | Preview changes without saving |
+
+**Examples:**
+```bash
+# Add vanilla forms by FormKey
+esp add-form-list "MyMod.esp" "MyMod_MetalKeywords" --add-form "Skyrim.esm:0x000896" --add-form "Skyrim.esm:0x000897"
+
+# Add mod-specific forms by EditorID
+esp add-form-list "MyMod.esp" "MyMod_CustomWeapons" --add-form "MyMod_Sword01" --add-form "MyMod_Sword02"
+
+# Use in script: FormList Property MyList Auto
+# Set property: --property MyList --value "MyMod.esp|0x800"
+```
+
+---
+
+### add-encounter-zone
+
+Add an encounter zone to control level scaling in locations.
+
+```bash
+esp add-encounter-zone <plugin> <editorId> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+| `editorId` | Unique Editor ID for the encounter zone |
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--min-level` | 1 | Minimum enemy level |
+| `--max-level` | 0 | Maximum enemy level (0 = unlimited scaling) |
+| `--never-resets` | false | Enemies stay defeated permanently |
+| `--disable-combat-boundary` | false | NPCs can pursue player anywhere |
+| `--preset` | - | Apply preset configuration (see below) |
+| `--dry-run` | false | Preview changes without saving |
+
+**Presets:**
+| Preset | Description |
+|--------|-------------|
+| `low-level` | Min 1, Max 10 - starter areas, tutorial content |
+| `mid-level` | Min 10, Max 30 - standard dungeons, mid-game |
+| `high-level` | Min 30, Max 50 - end-game content, boss fights |
+| `scaling` | Min 1, Max unlimited - quest content that works at any level |
+
+**Examples:**
+```bash
+# Starter dungeon
+esp add-encounter-zone "MyMod.esp" "MyMod_StarterCave" --preset low-level
+
+# End-game raid
+esp add-encounter-zone "MyMod.esp" "MyMod_BossLair" --min-level 30 --max-level 50 --never-resets
+
+# Fully scaling quest zone
+esp add-encounter-zone "MyMod.esp" "MyMod_QuestZone" --preset scaling
+```
+
+---
+
+### add-location
+
+Add a location record for named areas, quest markers, and fast travel points.
+
+```bash
+esp add-location <plugin> <editorId> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+| `editorId` | Unique Editor ID for the location |
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--name` | - | Display name shown to player |
+| `--parent-location` | - | Parent location FormKey or EditorID |
+| `--add-keyword` | - | Add location keyword (can use multiple times) |
+| `--preset` | - | Apply preset with keyword (see below) |
+| `--dry-run` | false | Preview changes without saving |
+
+**Presets:**
+| Preset | Keyword | Use Case |
+|--------|---------|----------|
+| `inn` | LocTypeInn | Taverns, inns, drinking establishments |
+| `city` | LocTypeCity | Major walled settlements, capitals |
+| `dungeon` | LocTypeDungeon | Caves, ruins, underground areas |
+| `dwelling` | LocTypeDwelling | Player homes, NPC houses |
+
+**Examples:**
+```bash
+# Inn location
+esp add-location "MyMod.esp" "MyMod_RustyTankard" --name "The Rusty Tankard" --preset inn
+
+# Player home with parent
+esp add-location "MyMod.esp" "MyMod_PlayerHome" --name "Cozy Cottage" --preset dwelling --parent-location "WhiterunHoldLocation"
+
+# Custom dungeon
+esp add-location "MyMod.esp" "MyMod_AncientRuins" --name "Forgotten Crypt" --preset dungeon
+```
+
+---
+
+### add-outfit
+
+Add an outfit record to define NPC equipment sets.
+
+```bash
+esp add-outfit <plugin> <editorId> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+| `editorId` | Unique Editor ID for the outfit |
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--add-item` | - | Add armor or weapon by EditorID (can use multiple times) |
+| `--preset` | - | Apply preset outfit (see below) |
+| `--dry-run` | false | Preview changes without saving |
+
+**Presets:**
+| Preset | Contents |
+|--------|----------|
+| `guard` | Iron armor + sword + shield (basic guard outfit) |
+| `farmer` | Farmer clothes + roughspun tunic (civilian clothing) |
+| `mage` | Mage robes + hood (spellcaster outfit) |
+| `thief` | Leather armor set (rogue/thief outfit) |
+
+**Examples:**
+```bash
+# Guard outfit with preset
+esp add-outfit "MyMod.esp" "MyMod_TownGuard" --preset guard
+
+# Custom outfit
+esp add-outfit "MyMod.esp" "MyMod_CustomOutfit" --add-item "ArmorIronCuirass" --add-item "WeaponIronSword" --add-item "ArmorIronShield"
+
+# Farmer outfit
+esp add-outfit "MyMod.esp" "MyMod_Villager" --preset farmer
+```
+
+---
+
 ### add-perk
 
 Add a perk record to a plugin.
