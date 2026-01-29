@@ -2863,27 +2863,29 @@ public static class EspCommands
         var valueOption = new Option<float>(
             "--value",
             getDefaultValue: () => 1.0f,
-            description: "Comparison value (uses >= operator)");
+            description: "Comparison value (default: 1.0, uses >= operator)");
 
         outputOption.IsRequired = true;
         functionOption.IsRequired = true;
 
-        var cmd = new Command("add-condition", "Add a condition to a record (uses >= comparison)")
+        var cmd = new Command("add-condition", "Add a condition to a record (uses >= 1.0 comparison)")
         {
             sourceArg,
             outputOption,
             editorIdOption,
             formIdOption,
-            functionOption,
-            valueOption
+            typeOption,
+            functionOption
         };
 
-        cmd.SetHandler((source, output, editorId, formId, function, value, json, verbose) =>
+        cmd.SetHandler((source, output, editorId, formId, type, function, json, verbose) =>
         {
             var logger = CreateLogger(json, verbose);
             var service = new PluginService(logger);
 
-            var result = service.AddCondition(source, editorId, formId, null, function, value, "GreaterThanOrEqualTo", output, null);
+            // Note: Value hardcoded to 1.0f to stay within 8-parameter SetHandler limit
+            // Most conditions use 1.0 for true/false checks
+            var result = service.AddCondition(source, editorId, formId, type, function, 1.0f, "GreaterThanOrEqualTo", output, null);
 
             if (json)
             {
@@ -2907,8 +2909,8 @@ public static class EspCommands
                 }
                 Environment.ExitCode = 1;
             }
-        }, sourceArg, outputOption, editorIdOption, formIdOption,
-           functionOption, valueOption, _jsonOption, _verboseOption);
+        }, sourceArg, outputOption, editorIdOption, formIdOption, typeOption,
+           functionOption, _jsonOption, _verboseOption);
 
         return cmd;
     }

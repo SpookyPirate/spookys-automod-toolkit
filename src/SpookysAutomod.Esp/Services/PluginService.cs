@@ -804,13 +804,13 @@ public class PluginService
                     Operator = condition.CompareOperator.ToString()
                 };
 
-                // Handle ConditionFloat (most common)
-                if (condition is ConditionFloat condFloat)
+                // Handle ConditionFloat (most common) - use getter interface for binary overlay compatibility
+                if (condition is IConditionFloatGetter condFloat)
                 {
                     condInfo.ComparisonValue = condFloat.ComparisonValue;
                 }
                 // Handle ConditionGlobal (uses global variable)
-                else if (condition is ConditionGlobal condGlobal)
+                else if (condition is IConditionGlobalGetter condGlobal)
                 {
                     condInfo.ComparisonValue = 0; // Global comparison
                     if (condGlobal.ComparisonValue.FormKey != null)
