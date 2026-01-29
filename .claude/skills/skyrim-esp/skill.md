@@ -223,7 +223,7 @@ dotnet run --project src/SpookysAutomod.Cli -- esp generate-seq "<plugin>" --out
 dotnet run --project src/SpookysAutomod.Cli -- esp merge "<source>.esp" "<target>.esp" --output "Merged.esp"
 ```
 
-## Record Viewing and Override System (v1.7.0)
+## Record Viewing and Override System
 
 View, analyze, and create override patches for existing records without xEdit.
 
