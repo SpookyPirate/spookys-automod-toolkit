@@ -23,6 +23,9 @@ public static class ArchiveCommands
         archiveCommand.AddCommand(CreateExtractCommand());
         archiveCommand.AddCommand(CreateCreateCommand());
         archiveCommand.AddCommand(CreateStatusCommand());
+        archiveCommand.AddCommand(CreateAddFilesCommand());
+        archiveCommand.AddCommand(CreateRemoveFilesCommand());
+        archiveCommand.AddCommand(CreateReplaceFilesCommand());
 
         return archiveCommand;
     }
@@ -351,6 +354,222 @@ public static class ArchiveCommands
                 Environment.ExitCode = 1;
             }
         }, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateAddFilesCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+        var filesOption = new Option<string[]>(
+            "--files",
+            description: "Files to add to the archive") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+        var preserveOption = new Option<bool>(
+            "--preserve-compression",
+            getDefaultValue: () => true,
+            description: "Preserve archive compression settings");
+
+        var cmd = new Command("add-files", "Add files to an existing archive")
+        {
+            archiveArg,
+            filesOption,
+            preserveOption
+        };
+
+        cmd.SetHandler(async (archive, files, preserve, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = await service.AddFilesAsync(archive, files.ToList(), preserve);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            filesAdded = result.Value!.FilesModified,
+                            totalFiles = result.Value.TotalFiles,
+                            errors = result.Value.Errors
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Added {result.Value!.FilesModified} file(s) to archive");
+                Console.WriteLine($"Total files in archive: {result.Value.TotalFiles}");
+
+                if (result.Value.Errors.Count > 0)
+                {
+                    Console.WriteLine("\nErrors:");
+                    foreach (var err in result.Value.Errors)
+                        Console.WriteLine($"  - {err}");
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, filesOption, preserveOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateRemoveFilesCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+        var filterOption = new Option<string>(
+            "--filter",
+            description: "Filter pattern for files to remove (e.g., *.esp, scripts/*)") { IsRequired = true };
+        var preserveOption = new Option<bool>(
+            "--preserve-compression",
+            getDefaultValue: () => true,
+            description: "Preserve archive compression settings");
+
+        var cmd = new Command("remove-files", "Remove files from an existing archive")
+        {
+            archiveArg,
+            filterOption,
+            preserveOption
+        };
+
+        cmd.SetHandler(async (archive, filter, preserve, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = await service.RemoveFilesAsync(archive, filter, preserve);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            filesRemoved = result.Value!.FilesModified,
+                            remainingFiles = result.Value.TotalFiles,
+                            errors = result.Value.Errors
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Removed {result.Value!.FilesModified} file(s) from archive");
+                Console.WriteLine($"Remaining files in archive: {result.Value.TotalFiles}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, filterOption, preserveOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateReplaceFilesCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+        var sourceOption = new Option<string>(
+            "--source",
+            description: "Source directory containing replacement files") { IsRequired = true };
+        var filterOption = new Option<string?>(
+            "--filter",
+            description: "Filter pattern for files to replace (e.g., *.pex, scripts/*)");
+        var preserveOption = new Option<bool>(
+            "--preserve-compression",
+            getDefaultValue: () => true,
+            description: "Preserve archive compression settings");
+
+        var cmd = new Command("replace-files", "Replace files in an existing archive")
+        {
+            archiveArg,
+            sourceOption,
+            filterOption,
+            preserveOption
+        };
+
+        cmd.SetHandler(async (archive, source, filter, preserve, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = await service.ReplaceFilesAsync(archive, source, filter, preserve);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            filesReplaced = result.Value!.FilesModified,
+                            totalFiles = result.Value.TotalFiles,
+                            errors = result.Value.Errors
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Replaced {result.Value!.FilesModified} file(s) in archive");
+                Console.WriteLine($"Total files in archive: {result.Value.TotalFiles}");
+
+                if (result.Value.Errors.Count > 0)
+                {
+                    Console.WriteLine("\nErrors:");
+                    foreach (var err in result.Value.Errors)
+                        Console.WriteLine($"  - {err}");
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, sourceOption, filterOption, preserveOption, _jsonOption, _verboseOption);
 
         return cmd;
     }

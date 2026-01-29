@@ -375,6 +375,408 @@ public class ArchiveService
     }
 
     /// <summary>
+    /// Add files to an existing archive.
+    /// Uses extract-modify-repack workflow.
+    /// </summary>
+    public async Task<Result<ArchiveEditResult>> AddFilesAsync(
+        string archivePath,
+        List<string> filesToAdd,
+        bool preserveCompression = true)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<ArchiveEditResult>.Fail($"Archive not found: {archivePath}");
+        }
+
+        if (filesToAdd == null || filesToAdd.Count == 0)
+        {
+            return Result<ArchiveEditResult>.Fail("No files specified to add");
+        }
+
+        string? tempDir = null;
+        try
+        {
+            // Get original archive settings
+            var infoResult = GetInfo(archivePath);
+            if (!infoResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to read archive info: {infoResult.Error}");
+            }
+
+            var archiveInfo = infoResult.Value!;
+            var originalCompression = preserveCompression; // Default to preserving compression
+
+            // Create temp directory
+            tempDir = Path.Combine(Path.GetTempPath(), $"archive-edit-{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+
+            _logger.Debug($"Extracting archive to temp: {tempDir}");
+
+            // Extract existing archive
+            var extractResult = await ExtractAsync(archivePath, tempDir);
+            if (!extractResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to extract archive: {extractResult.Error}");
+            }
+
+            // Copy new files to temp directory
+            var filesAdded = 0;
+            var errors = new List<string>();
+
+            foreach (var sourceFile in filesToAdd)
+            {
+                if (!File.Exists(sourceFile))
+                {
+                    errors.Add($"Source file not found: {sourceFile}");
+                    continue;
+                }
+
+                try
+                {
+                    // Determine destination path (relative to temp dir)
+                    var fileName = Path.GetFileName(sourceFile);
+                    var destPath = Path.Combine(tempDir, fileName);
+
+                    // Create directory if needed
+                    var destDir = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                    }
+
+                    File.Copy(sourceFile, destPath, overwrite: true);
+                    filesAdded++;
+                    _logger.Debug($"Added file: {fileName}");
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to copy {sourceFile}: {ex.Message}");
+                }
+            }
+
+            if (filesAdded == 0)
+            {
+                return Result<ArchiveEditResult>.Fail(
+                    "No files were added",
+                    suggestions: new List<string> { "Check that source files exist and are accessible" });
+            }
+
+            // Repack archive
+            var options = new ArchiveCreateOptions
+            {
+                Compress = originalCompression
+            };
+
+            var createResult = await CreateAsync(tempDir, archivePath, options);
+            if (!createResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to repack archive: {createResult.Error}");
+            }
+
+            return Result<ArchiveEditResult>.Ok(new ArchiveEditResult
+            {
+                FilesModified = filesAdded,
+                TotalFiles = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories).Length,
+                Errors = errors
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ArchiveEditResult>.Fail(
+                $"Failed to add files: {ex.Message}",
+                ex.StackTrace);
+        }
+        finally
+        {
+            // Cleanup temp directory
+            if (tempDir != null && Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                    _logger.Debug($"Cleaned up temp directory: {tempDir}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp directory: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Remove files from an existing archive.
+    /// Uses extract-modify-repack workflow.
+    /// </summary>
+    public async Task<Result<ArchiveEditResult>> RemoveFilesAsync(
+        string archivePath,
+        string? filter = null,
+        bool preserveCompression = true)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<ArchiveEditResult>.Fail($"Archive not found: {archivePath}");
+        }
+
+        if (string.IsNullOrEmpty(filter))
+        {
+            return Result<ArchiveEditResult>.Fail(
+                "No filter specified",
+                suggestions: new List<string>
+                {
+                    "Use --filter to specify which files to remove",
+                    "Example: --filter '*.esp' or --filter 'scripts/*'"
+                });
+        }
+
+        string? tempDir = null;
+        try
+        {
+            // Create temp directory
+            tempDir = Path.Combine(Path.GetTempPath(), $"archive-edit-{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+
+            _logger.Debug($"Extracting archive to temp: {tempDir}");
+
+            // Extract existing archive
+            var extractResult = await ExtractAsync(archivePath, tempDir);
+            if (!extractResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to extract archive: {extractResult.Error}");
+            }
+
+            // Remove matching files
+            var filesRemoved = 0;
+            var allFiles = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories);
+
+            foreach (var file in allFiles)
+            {
+                var relativePath = Path.GetRelativePath(tempDir, file);
+
+                if (MatchesFilter(relativePath, filter))
+                {
+                    File.Delete(file);
+                    filesRemoved++;
+                    _logger.Debug($"Removed file: {relativePath}");
+                }
+            }
+
+            if (filesRemoved == 0)
+            {
+                return Result<ArchiveEditResult>.Fail(
+                    "No files matched the filter",
+                    suggestions: new List<string>
+                    {
+                        "Check the filter pattern",
+                        "Use 'archive list' to see available files"
+                    });
+            }
+
+            // Repack archive
+            var options = new ArchiveCreateOptions
+            {
+                Compress = preserveCompression
+            };
+
+            var createResult = await CreateAsync(tempDir, archivePath, options);
+            if (!createResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to repack archive: {createResult.Error}");
+            }
+
+            var remainingFiles = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories).Length;
+
+            return Result<ArchiveEditResult>.Ok(new ArchiveEditResult
+            {
+                FilesModified = filesRemoved,
+                TotalFiles = remainingFiles,
+                Errors = new List<string>()
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ArchiveEditResult>.Fail(
+                $"Failed to remove files: {ex.Message}",
+                ex.StackTrace);
+        }
+        finally
+        {
+            // Cleanup temp directory
+            if (tempDir != null && Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                    _logger.Debug($"Cleaned up temp directory: {tempDir}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp directory: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Replace files in an existing archive.
+    /// Uses extract-modify-repack workflow.
+    /// </summary>
+    public async Task<Result<ArchiveEditResult>> ReplaceFilesAsync(
+        string archivePath,
+        string sourceDir,
+        string? filter = null,
+        bool preserveCompression = true)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<ArchiveEditResult>.Fail($"Archive not found: {archivePath}");
+        }
+
+        if (!Directory.Exists(sourceDir))
+        {
+            return Result<ArchiveEditResult>.Fail($"Source directory not found: {sourceDir}");
+        }
+
+        string? tempDir = null;
+        try
+        {
+            // Create temp directory
+            tempDir = Path.Combine(Path.GetTempPath(), $"archive-edit-{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+
+            _logger.Debug($"Extracting archive to temp: {tempDir}");
+
+            // Extract existing archive
+            var extractResult = await ExtractAsync(archivePath, tempDir);
+            if (!extractResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to extract archive: {extractResult.Error}");
+            }
+
+            // Replace matching files from source directory
+            var filesReplaced = 0;
+            var errors = new List<string>();
+            var sourceFiles = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+
+            foreach (var sourceFile in sourceFiles)
+            {
+                var relativePath = Path.GetRelativePath(sourceDir, sourceFile);
+
+                // Check filter if specified
+                if (!string.IsNullOrEmpty(filter) && !MatchesFilter(relativePath, filter))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var destPath = Path.Combine(tempDir, relativePath);
+
+                    // Only replace if file exists in archive
+                    if (File.Exists(destPath))
+                    {
+                        File.Copy(sourceFile, destPath, overwrite: true);
+                        filesReplaced++;
+                        _logger.Debug($"Replaced file: {relativePath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"Failed to replace {relativePath}: {ex.Message}");
+                }
+            }
+
+            if (filesReplaced == 0)
+            {
+                return Result<ArchiveEditResult>.Fail(
+                    "No files were replaced",
+                    suggestions: new List<string>
+                    {
+                        "Check that source files match existing archive files",
+                        "Use 'archive list' to see files in the archive",
+                        "Adjust the filter pattern if needed"
+                    });
+            }
+
+            // Repack archive
+            var options = new ArchiveCreateOptions
+            {
+                Compress = preserveCompression
+            };
+
+            var createResult = await CreateAsync(tempDir, archivePath, options);
+            if (!createResult.Success)
+            {
+                return Result<ArchiveEditResult>.Fail($"Failed to repack archive: {createResult.Error}");
+            }
+
+            var totalFiles = Directory.GetFiles(tempDir, "*", SearchOption.AllDirectories).Length;
+
+            return Result<ArchiveEditResult>.Ok(new ArchiveEditResult
+            {
+                FilesModified = filesReplaced,
+                TotalFiles = totalFiles,
+                Errors = errors
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ArchiveEditResult>.Fail(
+                $"Failed to replace files: {ex.Message}",
+                ex.StackTrace);
+        }
+        finally
+        {
+            // Cleanup temp directory
+            if (tempDir != null && Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                    _logger.Debug($"Cleaned up temp directory: {tempDir}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp directory: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Simple pattern matching for file filters.
+    /// Supports wildcards like *.ext or folder/* patterns.
+    /// </summary>
+    private bool MatchesFilter(string path, string filter)
+    {
+        // Normalize path separators
+        path = path.Replace('\\', '/');
+        filter = filter.Replace('\\', '/');
+
+        // Exact match
+        if (path.Equals(filter, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Wildcard patterns
+        if (filter.Contains('*'))
+        {
+            // Convert glob pattern to regex
+            var pattern = "^" + System.Text.RegularExpressions.Regex.Escape(filter)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".")
+                + "$";
+
+            return System.Text.RegularExpressions.Regex.IsMatch(
+                path,
+                pattern,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
+        // Substring match
+        return path.Contains(filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Check if BSArch is available.
     /// </summary>
     public async Task<Result<string>> CheckToolsAsync()
@@ -412,4 +814,11 @@ public class ArchiveCreateOptions
 {
     public GameType GameType { get; set; } = GameType.SkyrimSE;
     public bool Compress { get; set; } = true;
+}
+
+public class ArchiveEditResult
+{
+    public int FilesModified { get; set; }
+    public int TotalFiles { get; set; }
+    public List<string> Errors { get; set; } = new();
 }

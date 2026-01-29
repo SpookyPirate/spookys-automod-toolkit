@@ -1,6 +1,6 @@
 ---
 name: skyrim-archive
-description: Read, extract, and create BSA/BA2 archives. Use when the user wants to package mod assets, extract files from existing mods, or inspect archive contents.
+description: Read, extract, create, and edit BSA/BA2 archives. Use when the user wants to package mod assets, extract files from existing mods, inspect archive contents, or modify archives (add/remove/replace files).
 ---
 
 # Skyrim Archive Module
@@ -76,6 +76,40 @@ dotnet run --project src/SpookysAutomod.Cli -- archive create "<directory>" --ou
 
 **Requires:** BSArch tool installed
 
+### Add Files to Archive
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive add-files "<archive>" --files <file1> <file2> ... [options]
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--files` | Required | Files to add to the archive |
+| `--preserve-compression` | true | Keep original compression settings |
+
+**Requires:** BSArch tool installed
+
+### Remove Files from Archive
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "<archive>" --filter "<pattern>" [options]
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--filter` | Required | Filter pattern (e.g., `*.esp`, `scripts/*`) |
+| `--preserve-compression` | true | Keep original compression settings |
+
+**Requires:** BSArch tool installed
+
+### Replace Files in Archive
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "<archive>" --source "<directory>" [options]
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--source` | Required | Directory with replacement files |
+| `--filter` | - | Filter pattern for files to replace |
+| `--preserve-compression` | true | Keep original compression settings |
+
+**Requires:** BSArch tool installed
+
 ## Common Workflows
 
 ### Inspect Existing Mod Archive
@@ -127,6 +161,59 @@ dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" --ou
 
 # 4. Create LE-compatible archive
 dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" --output "MyMod.bsa" --game le
+```
+
+### Archive Editing Workflows
+
+#### Add New Files to Existing Archive
+```bash
+# Add new mesh and texture to existing mod archive
+dotnet run --project src/SpookysAutomod.Cli -- archive add-files "MyMod.bsa" \
+  --files "meshes/mymod/newweapon.nif" "textures/mymod/newweapon.dds"
+
+# Archive is updated with new files while preserving existing content
+```
+
+#### Remove Deprecated Files from Archive
+```bash
+# Remove all ESP files (if mod was converted to ESL)
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "*.esp"
+
+# Remove old scripts folder
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "scripts/old/*"
+
+# Remove specific file
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "deprecated.txt"
+```
+
+#### Update Scripts in Archive
+```bash
+# Recompiled scripts and need to update them in archive
+# 1. Compile updated scripts
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Source" --output "./CompiledScripts"
+
+# 2. Replace scripts in archive
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "MyMod.bsa" \
+  --source "./CompiledScripts" \
+  --filter "*.pex"
+
+# Only files that exist in archive are replaced
+```
+
+#### Patch Mod Archive
+```bash
+# Create patch with updated assets
+# 1. Extract files you want to update
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "OriginalMod.bsa" \
+  --output "./Patch" \
+  --filter "textures/armor/*"
+
+# 2. Modify the extracted textures (use external tools)
+
+# 3. Replace textures in archive
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "OriginalMod.bsa" \
+  --source "./Patch" \
+  --filter "textures/armor/*"
 ```
 
 ### Troubleshooting Workflow
@@ -234,11 +321,13 @@ dotnet run --project src/SpookysAutomod.Cli -- archive status
 
 ## Important Notes
 
-1. **BSArch required** for create/extract - info/list work without it
+1. **BSArch required** for create/extract/edit - info/list work without it
 2. **Match archive to game** - SSE and LE use different formats
 3. **Directory structure matters** - Must mirror Data folder
 4. **Compression trade-off** - Smaller files but slower loading
-5. **Use `--json` flag** for machine-readable output when scripting
+5. **Archive editing** - add-files, remove-files, and replace-files use extract-modify-repack workflow (may take time for large archives)
+6. **Preserve compression** - By default, editing operations preserve the original archive compression settings
+7. **Use `--json` flag** for machine-readable output when scripting
 
 ## JSON Output
 
