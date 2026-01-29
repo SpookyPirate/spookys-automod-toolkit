@@ -44,12 +44,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         - Reports load order positions
         - Identifies winning override (last in load order)
 
-- **Mutagen Conditions API Research** - Comprehensive documentation on working with conditions
-    - Created `docs/MUTAGEN_CONDITIONS_API.md` with findings from API research
-    - Discovered 157 condition-related types in Mutagen
-    - Documented verified vs. unverified API patterns
-    - Added research tools in `src/SpookysAutomod.Esp/Research/`
-    - Note: Perks have Conditions property; Spells/Weapons/Armor do not
+- **Condition Management System** - View, add, and remove conditions on records
+    - `esp list-conditions` - View all conditions on a record (Perk, Package, IdleAnimation, MagicEffect)
+        - Shows condition function, comparison value, parameters, flags
+        - Numbered output for easy reference when removing
+        - Full JSON support for AI parsing
+    - `esp add-condition` - Add conditions to records
+        - Supports Perk, Package, IdleAnimation, MagicEffect record types
+        - Common condition functions: GetLevel, IsInCombat, GetActorValue, etc.
+        - Creates override patch automatically
+        - Hardcoded comparison value of 1.0 (suitable for most boolean checks)
+    - `esp remove-condition` - Remove specific conditions by index
+        - Remove single or multiple conditions (comma-separated indices)
+        - Preserves all other record properties
+        - Creates clean override patch
+    - **Important:** Conditions supported on Perk, Package, IdleAnimation, MagicEffect only
+    - Conditions NOT supported on Spell, Weapon, Armor (Mutagen API limitation)
+
+- **Script Property Management**
+    - `esp set-property` - Manually set script properties on quest or alias scripts
+        - Set properties on quest scripts or alias scripts (via `--alias-target`)
+        - Supports 6 property types: `object`, `alias`, `int`, `float`, `bool`, `string`
+        - Object properties use FormKey format: `Plugin.esp|0xFormID`
+        - Alias properties reference aliases within same quest
+        - Full JSON output support
+        - Complements `esp auto-fill` for manual property overrides
+        - Ported from unmerged PR #1, resolves user-reported documentation issue
 
 ### Changed
 

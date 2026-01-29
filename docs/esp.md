@@ -665,6 +665,113 @@ esp attach-script "MyMod.esp" --quest "MyMod_MainQuest" --script "MyMod_MainQues
 
 ---
 
+### set-property
+
+Manually set a script property on a quest script or alias script.
+
+```bash
+esp set-property <plugin> --quest <questId> --script <scriptName> --property <propertyName> --type <type> --value <value> [--alias-target <aliasName>]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+
+**Required Options:**
+| Option | Description |
+|--------|-------------|
+| `--quest` | Editor ID of the quest |
+| `--script` | Name of the script (without .pex) |
+| `--property` | Name of the property to set |
+| `--type` | Property type: `object`, `alias`, `int`, `float`, `bool`, `string` |
+| `--value` | Property value (format depends on type) |
+
+**Optional Options:**
+| Option | Description |
+|--------|-------------|
+| `--alias-target` | Target alias name (for setting properties on alias scripts) |
+
+**Property Types and Value Formats:**
+
+| Type | Value Format | Example |
+|------|--------------|---------|
+| `object` | `Plugin.esp\|0xFormID` | `Skyrim.esm\|0x00013794` |
+| `alias` | Alias name within same quest | `MyAlias` |
+| `int` | Integer value | `42` |
+| `float` | Float value | `3.14` |
+| `bool` | `true` or `false` | `true` |
+| `string` | String value | `Hello World` |
+
+**When to Use:**
+- Manually override auto-fill results
+- Set properties that don't match naming conventions
+- Reference YOUR mod's records (auto-fill searches Skyrim.esm)
+- Set alias properties within a quest
+
+**Important:**
+- The script must already be attached to the quest/alias
+- For object properties, the referenced plugin is added as a master
+- For alias properties, the alias must exist in the quest
+- Property names are case-sensitive
+
+**Examples:**
+
+```bash
+# Set an object property (FormKey reference)
+esp set-property "MyMod.esp" --quest "MyQuest" --script "MyScript" \
+  --property "MyKeyword" --type object --value "Skyrim.esm|0x00013794"
+
+# Set an alias property (reference to alias in same quest)
+esp set-property "MyMod.esp" --quest "MyQuest" --script "MyScript" \
+  --property "FollowerAlias" --type alias --value "MyFollowerAlias"
+
+# Set integer property
+esp set-property "MyMod.esp" --quest "MyQuest" --script "MyScript" \
+  --property "MaxCount" --type int --value "10"
+
+# Set float property
+esp set-property "MyMod.esp" --quest "MyQuest" --script "MyScript" \
+  --property "Duration" --type float --value "5.5"
+
+# Set boolean property
+esp set-property "MyMod.esp" --quest "MyQuest" --script "MyScript" \
+  --property "IsEnabled" --type bool --value "true"
+
+# Set string property
+esp set-property "MyMod.esp" --quest "MyQuest" --script "MyScript" \
+  --property "Message" --type string --value "Welcome!"
+
+# Set property on alias script
+esp set-property "MyMod.esp" --quest "MyQuest" --script "AliasScript" \
+  --alias-target "FollowerAlias" --property "MyProp" --type int --value "5"
+```
+
+**Console Output:**
+```
+Saved plugin: MyMod.esp
+Set int property 'MaxCount' = '10' on script 'MyScript' (quest 'MyQuest')
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": {
+    "quest": "MyQuest",
+    "script": "MyScript",
+    "property": "MaxCount",
+    "type": "int",
+    "value": "10"
+  },
+  "error": null
+}
+```
+
+**Tip:** Use `esp auto-fill` for automatic property resolution from PSC files. Only use `set-property` for manual overrides or special cases.
+
+---
+
 ### generate-seq
 
 Generate a SEQ file for start-enabled quests.
