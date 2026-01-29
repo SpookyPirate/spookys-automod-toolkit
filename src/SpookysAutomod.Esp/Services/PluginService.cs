@@ -1065,4 +1065,255 @@ public class PluginService
             return Result<IMajorRecord>.Fail($"Failed to create override record: {ex.Message}", ex.StackTrace);
         }
     }
+
+    /// <summary>
+    /// Find records across plugins by search pattern
+    /// </summary>
+    public Result<List<RecordSearchResult>> FindRecords(
+        string? searchPattern,
+        string? editorId,
+        string? recordType,
+        string? pluginPath,
+        string? dataFolder,
+        bool allPlugins = false)
+    {
+        try
+        {
+            var results = new List<RecordSearchResult>();
+            var pluginsToSearch = new List<string>();
+
+            if (allPlugins && !string.IsNullOrEmpty(dataFolder))
+            {
+                if (!Directory.Exists(dataFolder))
+                {
+                    return Result<List<RecordSearchResult>>.Fail(
+                        $"Data folder not found: {dataFolder}",
+                        suggestions: new List<string>
+                        {
+                            "Check the data folder path is correct",
+                            "Use an absolute path"
+                        });
+                }
+
+                pluginsToSearch.AddRange(Directory.GetFiles(dataFolder, "*.esp"));
+                pluginsToSearch.AddRange(Directory.GetFiles(dataFolder, "*.esm"));
+                pluginsToSearch.AddRange(Directory.GetFiles(dataFolder, "*.esl"));
+            }
+            else if (!string.IsNullOrEmpty(pluginPath))
+            {
+                if (!File.Exists(pluginPath))
+                {
+                    return Result<List<RecordSearchResult>>.Fail($"Plugin not found: {pluginPath}");
+                }
+                pluginsToSearch.Add(pluginPath);
+            }
+            else
+            {
+                return Result<List<RecordSearchResult>>.Fail(
+                    "Must provide either --plugin or --data-folder with --all-plugins",
+                    suggestions: new List<string>
+                    {
+                        "Use --plugin to search a specific plugin",
+                        "Use --data-folder --all-plugins to search all plugins"
+                    });
+            }
+
+            foreach (var plugin in pluginsToSearch)
+            {
+                try
+                {
+                    var mod = SkyrimMod.CreateFromBinaryOverlay(plugin, SkyrimRelease.SkyrimSE);
+                    var pluginName = Path.GetFileName(plugin);
+
+                    IEnumerable<IMajorRecordGetter> recordsToSearch = mod.EnumerateMajorRecords();
+
+                    if (!string.IsNullOrEmpty(recordType))
+                    {
+                        recordsToSearch = FilterByRecordType(mod, recordType);
+                    }
+
+                    foreach (var record in recordsToSearch)
+                    {
+                        bool matches = false;
+
+                        if (!string.IsNullOrEmpty(editorId))
+                        {
+                            matches = record.EditorID?.Equals(editorId, StringComparison.OrdinalIgnoreCase) == true;
+                        }
+                        else if (!string.IsNullOrEmpty(searchPattern))
+                        {
+                            matches = (record.EditorID?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true) ||
+                                     (GetRecordName(record)?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true);
+                        }
+
+                        if (matches)
+                        {
+                            results.Add(new RecordSearchResult
+                            {
+                                PluginName = pluginName,
+                                EditorId = record.EditorID ?? string.Empty,
+                                FormKey = record.FormKey.ToString(),
+                                RecordType = record.GetType().Name.Replace("Getter", "").Replace("ReadOnly", ""),
+                                Name = GetRecordName(record)
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Skipping plugin {plugin}: {ex.Message}");
+                    continue;
+                }
+            }
+
+            return Result<List<RecordSearchResult>>.Ok(results);
+        }
+        catch (Exception ex)
+        {
+            return Result<List<RecordSearchResult>>.Fail(
+                $"Failed to search records: {ex.Message}",
+                ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Batch create overrides for multiple records
+    /// </summary>
+    public Result<BatchOverrideResult> BatchOverride(
+        string sourcePluginPath,
+        string? recordType,
+        string? searchPattern,
+        string[]? editorIds,
+        string outputPluginName,
+        string? dataFolder = null)
+    {
+        try
+        {
+            if (!File.Exists(sourcePluginPath))
+            {
+                return Result<BatchOverrideResult>.Fail($"Source plugin not found: {sourcePluginPath}");
+            }
+
+            var sourceMod = SkyrimMod.CreateFromBinaryOverlay(sourcePluginPath, SkyrimRelease.SkyrimSE);
+
+            if (!outputPluginName.EndsWith(".esp", StringComparison.OrdinalIgnoreCase) &&
+                !outputPluginName.EndsWith(".esl", StringComparison.OrdinalIgnoreCase))
+            {
+                outputPluginName += ".esp";
+            }
+
+            var outputModKey = ModKey.FromFileName(outputPluginName);
+            var patchMod = new SkyrimMod(outputModKey, SkyrimRelease.SkyrimSE);
+
+            patchMod.ModHeader.MasterReferences.Add(new MasterReference
+            {
+                Master = sourceMod.ModKey
+            });
+
+            var recordsToOverride = new List<IMajorRecordGetter>();
+
+            if (editorIds != null && editorIds.Length > 0)
+            {
+                foreach (var editorId in editorIds)
+                {
+                    var findResult = FindRecordByEditorId(sourceMod, editorId, recordType ?? "");
+                    if (findResult.Success && findResult.Value != null)
+                    {
+                        recordsToOverride.Add(findResult.Value);
+                    }
+                }
+            }
+            else if (!string.IsNullOrEmpty(searchPattern))
+            {
+                IEnumerable<IMajorRecordGetter> allRecords = string.IsNullOrEmpty(recordType)
+                    ? sourceMod.EnumerateMajorRecords()
+                    : FilterByRecordType(sourceMod, recordType);
+
+                foreach (var record in allRecords)
+                {
+                    if (record.EditorID?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        recordsToOverride.Add(record);
+                    }
+                }
+            }
+
+            var modifiedRecords = new List<string>();
+            foreach (var record in recordsToOverride)
+            {
+                var overrideResult = CreateOverrideRecord(patchMod, record, false);
+                if (overrideResult.Success)
+                {
+                    modifiedRecords.Add(record.EditorID ?? record.FormKey.ToString());
+                }
+            }
+
+            var outputDir = !string.IsNullOrEmpty(dataFolder)
+                ? dataFolder
+                : Path.GetDirectoryName(sourcePluginPath) ?? Directory.GetCurrentDirectory();
+
+            var outputPath = Path.Combine(outputDir, outputPluginName);
+
+            patchMod.WriteToBinary(outputPath);
+
+            _logger.Info($"Created batch override patch: {outputPath}");
+
+            return Result<BatchOverrideResult>.Ok(new BatchOverrideResult
+            {
+                RecordsModified = modifiedRecords.Count,
+                ModifiedRecords = modifiedRecords,
+                PatchPath = outputPath
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<BatchOverrideResult>.Fail(
+                $"Failed to create batch override: {ex.Message}",
+                ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Filter records by type
+    /// </summary>
+    private IEnumerable<IMajorRecordGetter> FilterByRecordType(ISkyrimModGetter mod, string recordType)
+    {
+        return recordType.ToLowerInvariant() switch
+        {
+            "spell" => mod.Spells,
+            "weapon" => mod.Weapons,
+            "armor" => mod.Armors,
+            "quest" => mod.Quests,
+            "npc" => mod.Npcs,
+            "perk" => mod.Perks,
+            "faction" => mod.Factions,
+            "book" => mod.Books,
+            "miscitem" => mod.MiscItems,
+            "global" => mod.Globals,
+            "leveleditem" => mod.LeveledItems,
+            "formlist" => mod.FormLists,
+            "outfit" => mod.Outfits,
+            "location" => mod.Locations,
+            "encounterzone" => mod.EncounterZones,
+            _ => mod.EnumerateMajorRecords()
+        };
+    }
+
+    /// <summary>
+    /// Get the display name of a record
+    /// </summary>
+    private string? GetRecordName(IMajorRecordGetter record)
+    {
+        return record switch
+        {
+            ISpellGetter spell => spell.Name?.String,
+            IWeaponGetter weapon => weapon.Name?.String,
+            IArmorGetter armor => armor.Name?.String,
+            IQuestGetter quest => quest.Name?.String,
+            INpcGetter npc => npc.Name?.String,
+            IPerkGetter perk => perk.Name?.String,
+            IBookGetter book => book.Name?.String,
+            _ => null
+        };
+    }
 }

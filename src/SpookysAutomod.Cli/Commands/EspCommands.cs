@@ -45,6 +45,8 @@ public static class EspCommands
         espCommand.AddCommand(CreateAddOutfitCommand());
         espCommand.AddCommand(CreateViewRecordCommand());
         espCommand.AddCommand(CreateOverrideCommand());
+        espCommand.AddCommand(CreateFindRecordCommand());
+        espCommand.AddCommand(CreateBatchOverrideCommand());
 
         return espCommand;
     }
@@ -2406,6 +2408,141 @@ public static class EspCommands
                 Environment.ExitCode = 1;
             }
         }, sourceArg, outputOption, editorIdOption, formIdOption, typeOption,
+           dataFolderOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateFindRecordCommand()
+    {
+        var searchOption = new Option<string?>("--search", "Search pattern for EditorID or Name");
+        var editorIdOption = new Option<string?>("--editor-id", "Exact EditorID to find");
+        var typeOption = new Option<string?>("--type", "Record type to filter by");
+        var pluginOption = new Option<string?>("--plugin", "Path to specific plugin to search");
+        var dataFolderOption = new Option<string?>("--data-folder", "Data folder to search all plugins");
+        var allPluginsOption = new Option<bool>("--all-plugins", "Search all plugins in data folder");
+
+        var cmd = new Command("find-record", "Find records across plugins")
+        {
+            searchOption,
+            editorIdOption,
+            typeOption,
+            pluginOption,
+            dataFolderOption,
+            allPluginsOption
+        };
+
+        cmd.SetHandler((search, editorId, type, plugin, dataFolder, allPlugins, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.FindRecords(search, editorId, type, plugin, dataFolder, allPlugins);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success && result.Value != null)
+            {
+                var records = result.Value;
+                Console.WriteLine($"Found {records.Count} record(s):");
+                Console.WriteLine();
+
+                foreach (var record in records)
+                {
+                    Console.WriteLine($"Plugin: {record.PluginName}");
+                    Console.WriteLine($"  EditorID: {record.EditorId}");
+                    Console.WriteLine($"  FormKey: {record.FormKey}");
+                    Console.WriteLine($"  Type: {record.RecordType}");
+                    if (!string.IsNullOrEmpty(record.Name))
+                        Console.WriteLine($"  Name: {record.Name}");
+                    Console.WriteLine();
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, searchOption, editorIdOption, typeOption, pluginOption, dataFolderOption,
+           allPluginsOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateBatchOverrideCommand()
+    {
+        var sourceArg = new Argument<string>("source", "Path to the source plugin");
+        var outputOption = new Option<string>(
+            aliases: new[] { "--output", "-o" },
+            description: "Name of the output patch plugin");
+        var typeOption = new Option<string?>("--type", "Record type to filter");
+        var searchOption = new Option<string?>("--search", "Search pattern for EditorIDs");
+        var editorIdsOption = new Option<string?>("--editor-ids", "Comma-separated list of EditorIDs");
+        var dataFolderOption = new Option<string?>("--data-folder", "Data folder path");
+
+        outputOption.IsRequired = true;
+
+        var cmd = new Command("batch-override", "Create override patches for multiple records")
+        {
+            sourceArg,
+            outputOption,
+            typeOption,
+            searchOption,
+            editorIdsOption,
+            dataFolderOption
+        };
+
+        cmd.SetHandler((source, output, type, search, editorIdsStr, dataFolder, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            string[]? editorIds = null;
+            if (!string.IsNullOrEmpty(editorIdsStr))
+            {
+                editorIds = editorIdsStr.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            }
+
+            var result = service.BatchOverride(source, type, search, editorIds, output, dataFolder);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success && result.Value != null)
+            {
+                var batchResult = result.Value;
+                Console.WriteLine($"Created batch override patch: {batchResult.PatchPath}");
+                Console.WriteLine($"Modified {batchResult.RecordsModified} record(s):");
+                foreach (var record in batchResult.ModifiedRecords)
+                {
+                    Console.WriteLine($"  - {record}");
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, sourceArg, outputOption, typeOption, searchOption, editorIdsOption,
            dataFolderOption, _jsonOption, _verboseOption);
 
         return cmd;
