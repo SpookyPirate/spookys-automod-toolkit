@@ -77,6 +77,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved JSON Output** - Consistent Result<T> pattern across all operations
 - **Better FormKey Handling** - Support for both short and long FormKey formats
 
+### Fixed
+
+- **SKSE Template Modernization** - Completely updated SKSE plugin templates for CommonLibSSE-NG
+    - Fixed deprecated `CompatibleVersions` API → Now uses `.RuntimeCompatibility(Independent)`
+    - Added proper PCH configuration via CMake `target_precompile_headers()`
+    - Fixed incomplete type errors with `RE::TESObjectREFR` by including `<RE/Skyrim.h>` in PCH
+    - Fixed `NiPointer` conversion errors with correct `.get()` and `.As<T>()` usage
+    - Fixed `LookupForm` API misuse → Now uses `LookupByEditorID()` for EditorID strings
+    - Added comprehensive README with VCPKG and manual vendor/ setup instructions
+    - Added `build.bat` script for easy Windows CMD building
+    - Resolves 7 major user-reported compilation issues
+
 ### Developer Notes
 
 - Added 8 new model classes in `SpookysAutomod.Core.Models`
