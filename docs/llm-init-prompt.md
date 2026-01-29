@@ -634,7 +634,7 @@ esp auto-fill-all "LargeMod.esp" \
 
 ## Advanced Features
 
-### Record Viewing and Override System (v1.7.0)
+### Record Viewing and Override System
 
 **What it does:** View, analyze, and create override patches for existing records without xEdit.
 
@@ -669,7 +669,7 @@ esp remove-condition "Mod.esp" -o "Patch.esp" --editor-id "PerkID" --type perk -
 
 **Conditions:** Only on Perk, Package, IdleAnimation, MagicEffect (NOT on Spell/Weapon/Armor directly)
 
-### Auto-Fill: The Time-Saver (v1.5.0)
+### Auto-Fill: The Time-Saver
 
 **What it does:** Parses PSC files, extracts property types, searches Skyrim.esm with type filtering, fills matching properties automatically.
 
@@ -872,7 +872,7 @@ esp auto-fill-all <plugin> --script-dir <path> --data-folder <path> --json
 
 esp debug-types <pattern> --json
 
-# Record Viewing & Override System (v1.7.0)
+# Record Viewing & Override System
 esp view-record <plugin> --editor-id <id> --type <type> --json
 esp view-record <plugin> --form-id <formid> --json
 esp create-override <source> -o <output> --editor-id <id> --type <type> --json

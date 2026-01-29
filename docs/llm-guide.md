@@ -734,7 +734,7 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-weapon "ModA_ModB_Patch.e
 
 ---
 
-## Record Viewing and Override System (v1.7.0)
+## Record Viewing and Override System
 
 The Record Viewing and Override System eliminates the need for xEdit when analyzing or patching existing mods. All operations support JSON output for AI parsing.
 
