@@ -1316,4 +1316,274 @@ public class PluginService
             _ => null
         };
     }
+
+    /// <summary>
+    /// Compare two versions of the same record
+    /// </summary>
+    public Result<RecordComparison> CompareRecords(
+        string plugin1Path,
+        string plugin2Path,
+        string? editorId,
+        string? formId,
+        string? recordType)
+    {
+        try
+        {
+            if (!File.Exists(plugin1Path))
+            {
+                return Result<RecordComparison>.Fail($"Plugin 1 not found: {plugin1Path}");
+            }
+
+            if (!File.Exists(plugin2Path))
+            {
+                return Result<RecordComparison>.Fail($"Plugin 2 not found: {plugin2Path}");
+            }
+
+            var mod1 = SkyrimMod.CreateFromBinaryOverlay(plugin1Path, SkyrimRelease.SkyrimSE);
+            var mod2 = SkyrimMod.CreateFromBinaryOverlay(plugin2Path, SkyrimRelease.SkyrimSE);
+
+            IMajorRecordGetter? record1 = null;
+            IMajorRecordGetter? record2 = null;
+
+            if (!string.IsNullOrEmpty(formId))
+            {
+                var findResult1 = FindRecordByFormKey(mod1, formId);
+                var findResult2 = FindRecordByFormKey(mod2, formId);
+
+                if (!findResult1.Success || !findResult2.Success)
+                {
+                    return Result<RecordComparison>.Fail(
+                        "Record not found in one or both plugins",
+                        suggestions: new List<string>
+                        {
+                            "Verify the FormKey exists in both plugins",
+                            "Use --editor-id if the record has different FormKeys"
+                        });
+                }
+
+                record1 = findResult1.Value;
+                record2 = findResult2.Value;
+            }
+            else if (!string.IsNullOrEmpty(editorId) && !string.IsNullOrEmpty(recordType))
+            {
+                var findResult1 = FindRecordByEditorId(mod1, editorId, recordType);
+                var findResult2 = FindRecordByEditorId(mod2, editorId, recordType);
+
+                if (!findResult1.Success || !findResult2.Success)
+                {
+                    return Result<RecordComparison>.Fail(
+                        "Record not found in one or both plugins",
+                        suggestions: new List<string>
+                        {
+                            "Verify the EditorID exists in both plugins",
+                            "Check the record type is correct"
+                        });
+                }
+
+                record1 = findResult1.Value;
+                record2 = findResult2.Value;
+            }
+            else
+            {
+                return Result<RecordComparison>.Fail(
+                    "Must provide either FormID or both EditorID and RecordType");
+            }
+
+            if (record1 == null || record2 == null)
+            {
+                return Result<RecordComparison>.Fail("Failed to load records for comparison");
+            }
+
+            var info1Result = ExtractRecordInfo(record1, false);
+            var info2Result = ExtractRecordInfo(record2, false);
+
+            if (!info1Result.Success || !info2Result.Success)
+            {
+                return Result<RecordComparison>.Fail("Failed to extract record properties");
+            }
+
+            var info1 = info1Result.Value!;
+            var info2 = info2Result.Value!;
+
+            var differences = new Dictionary<string, FieldDifference>();
+
+            var allKeys = info1.Properties.Keys.Union(info2.Properties.Keys).ToHashSet();
+
+            foreach (var key in allKeys)
+            {
+                var value1 = info1.Properties.GetValueOrDefault(key);
+                var value2 = info2.Properties.GetValueOrDefault(key);
+
+                var value1Str = value1?.ToString() ?? "";
+                var value2Str = value2?.ToString() ?? "";
+
+                if (value1Str != value2Str)
+                {
+                    differences[key] = new FieldDifference
+                    {
+                        Field = key,
+                        OriginalValue = value1,
+                        ModifiedValue = value2
+                    };
+                }
+            }
+
+            return Result<RecordComparison>.Ok(new RecordComparison
+            {
+                Original = info1,
+                Modified = info2,
+                Differences = differences
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<RecordComparison>.Fail(
+                $"Failed to compare records: {ex.Message}",
+                ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Detect load order conflicts for a record or plugin
+    /// </summary>
+    public Result<ConflictReport> DetectConflicts(
+        string? pluginPath,
+        string? editorId,
+        string? formId,
+        string? recordType,
+        string dataFolder)
+    {
+        try
+        {
+            if (!Directory.Exists(dataFolder))
+            {
+                return Result<ConflictReport>.Fail($"Data folder not found: {dataFolder}");
+            }
+
+            if (string.IsNullOrEmpty(pluginPath) && string.IsNullOrEmpty(formId) && string.IsNullOrEmpty(editorId))
+            {
+                return Result<ConflictReport>.Fail(
+                    "Must provide either --plugin, --form-id, or --editor-id");
+            }
+
+            var allPlugins = new List<string>();
+            allPlugins.AddRange(Directory.GetFiles(dataFolder, "*.esm").OrderBy(f => f));
+            allPlugins.AddRange(Directory.GetFiles(dataFolder, "*.esp").OrderBy(f => f));
+            allPlugins.AddRange(Directory.GetFiles(dataFolder, "*.esl").OrderBy(f => f));
+
+            Mutagen.Bethesda.Plugins.FormKey? targetFormKey = null;
+            string targetEditorId = editorId ?? "";
+
+            if (!string.IsNullOrEmpty(formId))
+            {
+                if (!Mutagen.Bethesda.Plugins.FormKey.TryFactory(formId, out var parsedFormKey))
+                {
+                    return Result<ConflictReport>.Fail($"Invalid FormID format: {formId}");
+                }
+                targetFormKey = parsedFormKey;
+            }
+
+            var conflicts = new List<ConflictingPlugin>();
+            int loadOrder = 0;
+
+            foreach (var plugin in allPlugins)
+            {
+                try
+                {
+                    var mod = SkyrimMod.CreateFromBinaryOverlay(plugin, SkyrimRelease.SkyrimSE);
+
+                    bool hasRecord = false;
+
+                    if (targetFormKey.HasValue)
+                    {
+                        hasRecord = mod.EnumerateMajorRecords().Any(r => r.FormKey == targetFormKey.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(targetEditorId) && !string.IsNullOrEmpty(recordType))
+                    {
+                        var findResult = FindRecordByEditorId(mod, targetEditorId, recordType);
+                        hasRecord = findResult.Success;
+
+                        if (hasRecord && !targetFormKey.HasValue && findResult.Value != null)
+                        {
+                            targetFormKey = findResult.Value.FormKey;
+                            targetEditorId = findResult.Value.EditorID ?? targetEditorId;
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(pluginPath))
+                    {
+                        hasRecord = Path.GetFileName(plugin).Equals(
+                            Path.GetFileName(pluginPath),
+                            StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    if (hasRecord)
+                    {
+                        conflicts.Add(new ConflictingPlugin
+                        {
+                            PluginName = Path.GetFileName(plugin),
+                            LoadOrder = loadOrder,
+                            IsWinner = false
+                        });
+                    }
+
+                    loadOrder++;
+                }
+                catch
+                {
+                    loadOrder++;
+                    continue;
+                }
+            }
+
+            if (conflicts.Count == 0)
+            {
+                return Result<ConflictReport>.Fail(
+                    "No conflicts found",
+                    suggestions: new List<string>
+                    {
+                        "Record may not exist in any loaded plugins",
+                        "Verify the FormKey or EditorID is correct"
+                    });
+            }
+
+            conflicts.Last().IsWinner = true;
+
+            return Result<ConflictReport>.Ok(new ConflictReport
+            {
+                FormKey = targetFormKey?.ToString() ?? "",
+                EditorId = targetEditorId,
+                Conflicts = conflicts,
+                WinningPlugin = conflicts.Last().PluginName
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ConflictReport>.Fail(
+                $"Failed to detect conflicts: {ex.Message}",
+                ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Extract RecordInfo from a record (helper for compare)
+    /// </summary>
+    private Result<RecordInfo> ExtractRecordInfo(IMajorRecordGetter record, bool includeRaw)
+    {
+        var recordInfo = new RecordInfo
+        {
+            EditorId = record.EditorID ?? string.Empty,
+            FormKey = record.FormKey.ToString(),
+            RecordType = record.GetType().Name.Replace("Getter", "").Replace("ReadOnly", "")
+        };
+
+        var propsResult = ExtractRecordProperties(record, includeRaw);
+        if (!propsResult.Success)
+        {
+            return Result<RecordInfo>.Fail(propsResult.Error ?? "Failed to extract properties");
+        }
+
+        recordInfo.Properties = propsResult.Value ?? new Dictionary<string, object?>();
+
+        return Result<RecordInfo>.Ok(recordInfo);
+    }
 }

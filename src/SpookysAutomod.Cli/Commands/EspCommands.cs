@@ -47,6 +47,8 @@ public static class EspCommands
         espCommand.AddCommand(CreateOverrideCommand());
         espCommand.AddCommand(CreateFindRecordCommand());
         espCommand.AddCommand(CreateBatchOverrideCommand());
+        espCommand.AddCommand(CreateCompareRecordCommand());
+        espCommand.AddCommand(CreateConflictsCommand());
 
         return espCommand;
     }
@@ -2544,6 +2546,150 @@ public static class EspCommands
             }
         }, sourceArg, outputOption, typeOption, searchOption, editorIdsOption,
            dataFolderOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateCompareRecordCommand()
+    {
+        var plugin1Arg = new Argument<string>("plugin1", "Path to first plugin");
+        var plugin2Arg = new Argument<string>("plugin2", "Path to second plugin");
+        var editorIdOption = new Option<string?>("--editor-id", "EditorID of the record to compare");
+        var formIdOption = new Option<string?>("--form-id", "FormID of the record to compare");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+
+        var cmd = new Command("compare-record", "Compare two versions of the same record")
+        {
+            plugin1Arg,
+            plugin2Arg,
+            editorIdOption,
+            formIdOption,
+            typeOption
+        };
+
+        cmd.SetHandler((plugin1, plugin2, editorId, formId, type, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.CompareRecords(plugin1, plugin2, editorId, formId, type);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success && result.Value != null)
+            {
+                var comparison = result.Value;
+
+                Console.WriteLine($"Comparing: {comparison.Original.EditorId} ({comparison.Original.FormKey})");
+                Console.WriteLine($"Plugin 1: {plugin1}");
+                Console.WriteLine($"Plugin 2: {plugin2}");
+                Console.WriteLine();
+
+                if (comparison.Differences.Count == 0)
+                {
+                    Console.WriteLine("No differences found - records are identical");
+                }
+                else
+                {
+                    Console.WriteLine($"Found {comparison.Differences.Count} difference(s):");
+                    Console.WriteLine();
+
+                    foreach (var (field, diff) in comparison.Differences)
+                    {
+                        Console.WriteLine($"Field: {field}");
+                        Console.WriteLine($"  Original:  {diff.OriginalValue ?? "(null)"}");
+                        Console.WriteLine($"  Modified:  {diff.ModifiedValue ?? "(null)"}");
+                        Console.WriteLine();
+                    }
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, plugin1Arg, plugin2Arg, editorIdOption, formIdOption, typeOption,
+           _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateConflictsCommand()
+    {
+        var dataFolderArg = new Argument<string>("data-folder", "Path to Skyrim Data folder");
+        var pluginOption = new Option<string?>("--plugin", "Check conflicts for this plugin");
+        var editorIdOption = new Option<string?>("--editor-id", "Check conflicts for this EditorID");
+        var formIdOption = new Option<string?>("--form-id", "Check conflicts for this FormID");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+
+        var cmd = new Command("conflicts", "Detect load order conflicts")
+        {
+            dataFolderArg,
+            pluginOption,
+            editorIdOption,
+            formIdOption,
+            typeOption
+        };
+
+        cmd.SetHandler((dataFolder, plugin, editorId, formId, type, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.DetectConflicts(plugin, editorId, formId, type, dataFolder);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success && result.Value != null)
+            {
+                var report = result.Value;
+
+                Console.WriteLine("Conflict Report:");
+                if (!string.IsNullOrEmpty(report.EditorId))
+                    Console.WriteLine($"EditorID: {report.EditorId}");
+                if (!string.IsNullOrEmpty(report.FormKey))
+                    Console.WriteLine($"FormKey: {report.FormKey}");
+                Console.WriteLine();
+
+                Console.WriteLine($"Found {report.Conflicts.Count} plugin(s) modifying this record:");
+                Console.WriteLine();
+
+                foreach (var conflict in report.Conflicts)
+                {
+                    var winner = conflict.IsWinner ? " [WINNER]" : "";
+                    Console.WriteLine($"[{conflict.LoadOrder:D3}] {conflict.PluginName}{winner}");
+                }
+
+                Console.WriteLine();
+                Console.WriteLine($"Winning override: {report.WinningPlugin}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, dataFolderArg, pluginOption, editorIdOption, formIdOption, typeOption,
+           _jsonOption, _verboseOption);
 
         return cmd;
     }
