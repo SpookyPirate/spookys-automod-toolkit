@@ -1148,8 +1148,16 @@ public class PluginService
                         }
                         else if (!string.IsNullOrEmpty(searchPattern))
                         {
-                            matches = (record.EditorID?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true) ||
-                                     (GetRecordName(record)?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true);
+                            // Handle wildcard pattern
+                            if (searchPattern == "*")
+                            {
+                                matches = true; // Match all records when wildcard is used
+                            }
+                            else
+                            {
+                                matches = (record.EditorID?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true) ||
+                                         (GetRecordName(record)?.Contains(searchPattern, StringComparison.OrdinalIgnoreCase) == true);
+                            }
                         }
 
                         if (matches)
