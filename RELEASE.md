@@ -1,12 +1,16 @@
 # Release Structure Guide
 
-This document defines the proper structure for GitHub releases to ensure clean, professional distributions without development artifacts.
+This document defines the proper structure for GitHub releases to ensure users can unzip and immediately use the toolkit.
+
+## Purpose
+
+Releases are **ready-to-use distributions** with pre-built binaries. Users unzip to their projects directory and can immediately run commands without building.
 
 ## Directory Structure
 
 ```
 spookys-automod-toolkit-vX.Y.Z/
-├── README.txt                          # Quick start guide for release
+├── README.txt                          # Quick start guide
 ├── .claude/                            # Claude Code skills
 │   └── skills/
 │       ├── skyrim-archive/
@@ -21,96 +25,57 @@ spookys-automod-toolkit-vX.Y.Z/
     ├── CHANGELOG.md
     ├── CLAUDE.md
     ├── CONTRIBUTING.md
-    ├── Directory.Build.props
     ├── README.md
     ├── SpookysAutomod.sln
     ├── docs/                           # User documentation
-    │   ├── archive.md
-    │   ├── audio.md
-    │   ├── esp.md
-    │   ├── llm-guide.md
-    │   ├── llm-init-prompt.md
-    │   ├── mcm.md
-    │   ├── nif.md
-    │   ├── papyrus.md
-    │   ├── README.md
-    │   └── skse.md
-    ├── graphics/                       # Logos and images
-    │   └── spookys-automod-toolkit-logo.png
-    ├── src/                            # Source code
-    │   ├── SpookysAutomod.Archive/
-    │   ├── SpookysAutomod.Audio/
+    ├── graphics/                       # Logos
+    ├── src/                            # Source code WITH bin/Release/
     │   ├── SpookysAutomod.Cli/
+    │   │   └── bin/Release/net8.0/     # ✓ Pre-built binaries
     │   ├── SpookysAutomod.Core/
-    │   ├── SpookysAutomod.Esp/
-    │   ├── SpookysAutomod.Mcm/
-    │   ├── SpookysAutomod.Nif/
-    │   ├── SpookysAutomod.Papyrus/
-    │   └── SpookysAutomod.Skse/
-    └── templates/                      # SKSE project templates
-        └── skse/
-            ├── basic/
-            └── papyrus-native/
+    │   │   └── bin/Release/net8.0/     # ✓ Pre-built binaries
+    │   └── ... (all modules with bin/Release/)
+    └── templates/                      # SKSE templates
 ```
 
 ## What to INCLUDE
 
-### Essential Files
-- `.gitignore` - Shows users what to ignore
-- `CHANGELOG.md` - Release history
-- `CLAUDE.md` - Project architecture for Claude
-- `CONTRIBUTING.md` - Contribution guidelines
-- `README.md` - Main documentation
-- `SpookysAutomod.sln` - Solution file
+### Required Files
+- README.txt (root level)
+- .claude/skills/ (all skills)
+- All source code (.cs, .csproj files)
+- SpookysAutomod.sln
+- CHANGELOG.md, CLAUDE.md, CONTRIBUTING.md, README.md
+- docs/ (all documentation)
+- graphics/ (logo)
+- templates/ (SKSE templates)
+- **bin/Release/** directories (pre-built binaries - CRITICAL)
 
-### Source Code
-- All `.cs` files
-- All `.csproj` files
-- Directory.Build.props
-- Complete `src/` hierarchy
-
-### Documentation
-- All `docs/*.md` files
-- `graphics/` folder with logo
-
-### Templates
-- Complete `templates/` directory structure
-- All SKSE templates (basic, papyrus-native)
-
-### Claude Skills
-- Complete `.claude/skills/` directory
-- All skill.md files
-
-### README.txt
-- Root-level quick start guide
-- Points users to main README.md
-- Explains directory structure
+### Pre-Built Binaries
+- `src/*/bin/Release/net8.0/` - All Release build outputs
+- Includes all DLLs, dependencies, and executables
+- Users can run immediately without `dotnet build`
 
 ## What to EXCLUDE
 
 ### Development Artifacts
 - `tests/` - Unit tests (not needed by end users)
-- `bin/` - Build outputs (users build themselves)
-- `obj/` - Intermediate build files
-- `.vs/` - Visual Studio cache
-- `.idea/` - Rider cache
-- `.vscode/` - VS Code cache
-- `*.user` - User-specific project files
+- `bin/Debug/` - Debug builds
+- `obj/` - All intermediate build files
+- `.vs/`, `.idea/`, `.vscode/` - IDE caches
+- `*.user` files
 
 ### Copyrighted Content
 - `skyrim-script-headers/` - Bethesda copyright
-- `scripts/` - Compiled test scripts
+- `scripts/` - Test scripts
 
-### Git Metadata
-- `.git/` - Git repository data
-- `.github/` - GitHub workflows (already in repo)
-
-### Cache Files
+### Git/Build Metadata
+- `.git/` - Repository data
+- `.github/` - Workflows
 - `.papyrus/` - Compiler cache
-- `*.cache` files in obj/
-- `.suo` files
+- Root-level test files (*.csx, ConditionApiTest.*, temp/)
 
-## Release README.txt Template
+## README.txt Template
 
 ```txt
 # Spooky's AutoMod Toolkit vX.Y.Z
@@ -119,161 +84,129 @@ spookys-automod-toolkit-vX.Y.Z/
 
 This release contains:
 - **.claude/** - Claude Code skills for AI-assisted modding
-- **spookys-automod-toolkit/** - The toolkit source code and documentation
+- **spookys-automod-toolkit/** - The toolkit source code
 
 ## For Claude Code Users
 
 Place this entire folder in your projects directory. Claude Code will automatically
 detect the .claude/skills/ and enable AI-assisted Skyrim modding commands.
 
-## For Developers
-
-1. Install .NET 8 SDK: https://dotnet.microsoft.com/download
-2. Build the toolkit: `dotnet build`
-3. Run commands: `dotnet run --project src/SpookysAutomod.Cli -- <module> <command>`
-
 ## Quick Start
 
-See spookys-automod-toolkit/README.md for complete installation and usage instructions.
-
-## What's New
-
-See spookys-automod-toolkit/CHANGELOG.md for release notes.
+See spookys-automod-toolkit/README.md for installation and usage instructions.
 ```
 
 ## Creating a Release
 
-### Using PowerShell Script
+### Step 1: Build Release Binaries
 
-```powershell
-# Set version
-$version = "1.7.0"
-$source = "C:\path\to\repository"
-$releaseDir = "C:\tmp\release-build"
-$releaseName = "spookys-automod-toolkit-v$version"
+```bash
+cd path/to/repository
+dotnet build SpookysAutomod.sln -c Release
+```
 
-# Create structure
-New-Item -ItemType Directory -Path "$releaseDir\$releaseName" -Force
-New-Item -ItemType Directory -Path "$releaseDir\$releaseName\spookys-automod-toolkit" -Force
+### Step 2: Create Release Structure
 
-# Copy .claude/ skills
-Copy-Item -Path "$source\.claude" -Destination "$releaseDir\$releaseName\.claude" -Recurse -Force
+```bash
+# Clean previous build
+rm -rf /c/tmp/release
+mkdir -p /c/tmp/release/spookys-automod-toolkit-v1.X.X
 
-# Copy README.txt (create from template)
-$readmeTxt = @"
-# Spooky's AutoMod Toolkit v$version
+# Copy .claude/
+cp -r .claude /c/tmp/release/spookys-automod-toolkit-v1.X.X/
 
-## Directory Structure
+# Create README.txt (use template above)
+cat > /c/tmp/release/spookys-automod-toolkit-v1.X.X/README.txt << 'EOF'
+[README.txt content from template]
+EOF
 
-This release contains:
-- **.claude/** - Claude Code skills for AI-assisted modding
-- **spookys-automod-toolkit/** - The toolkit source code and documentation
+# Copy all files EXCEPT excluded directories
+# Include bin/Release/, exclude bin/Debug/ and obj/
+tar --exclude='.git' \
+    --exclude='bin/Debug' \
+    --exclude='obj' \
+    --exclude='tests' \
+    --exclude='.vs' \
+    --exclude='.idea' \
+    --exclude='.vscode' \
+    --exclude='skyrim-script-headers' \
+    --exclude='scripts' \
+    --exclude='.papyrus' \
+    --exclude='.claude' \
+    --exclude='temp' \
+    --exclude='*.csx' \
+    --exclude='ConditionApiTest.*' \
+    --exclude='RELEASE.md' \
+    -cf - . | tar -xf - -C /c/tmp/release/spookys-automod-toolkit-v1.X.X/spookys-automod-toolkit
+```
 
-## For Claude Code Users
+### Step 3: Clean Up Root Test Files
 
-Place this entire folder in your projects directory. Claude Code will automatically
-detect the .claude/skills/ and enable AI-assisted Skyrim modding commands.
+```bash
+cd /c/tmp/release/spookys-automod-toolkit-v1.X.X/spookys-automod-toolkit
+rm -f ConditionApiTest.cs ConditionApiTest.csproj test-*.csx RELEASE.md
+rm -rf temp
+```
 
-## For Developers
+### Step 4: Verify Structure
 
-1. Install .NET 8 SDK: https://dotnet.microsoft.com/download
-2. Build the toolkit: ``dotnet build``
-3. Run commands: ``dotnet run --project src/SpookysAutomod.Cli -- <module> <command>``
+```bash
+# Check bin/Release/ exists
+ls src/SpookysAutomod.Cli/bin/Release/net8.0/*.dll
 
-## Quick Start
+# Check excluded directories are gone
+ls tests 2>/dev/null && echo "ERROR: tests/ still present"
+ls bin/Debug 2>/dev/null && echo "ERROR: bin/Debug/ still present"
+ls obj 2>/dev/null && echo "ERROR: obj/ still present"
+```
 
-See spookys-automod-toolkit/README.md for complete installation and usage instructions.
+### Step 5: Create Zip
 
-## What's New
-
-See spookys-automod-toolkit/CHANGELOG.md for release notes.
-"@
-Set-Content -Path "$releaseDir\$releaseName\README.txt" -Value $readmeTxt
-
-# Copy source files (excluding development artifacts)
-$excludedDirs = @('.git', 'bin', 'obj', 'tests', '.vs', '.idea', '.vscode',
-                  'skyrim-script-headers', 'scripts', '.papyrus')
-
-Get-ChildItem -Path $source -Recurse -Force | Where-Object {
-    $item = $_
-    $excluded = $false
-
-    # Check if item is in excluded directory
-    foreach ($dir in $excludedDirs) {
-        if ($item.FullName -match "\\$dir\\" -or $item.Name -eq $dir) {
-            $excluded = $true
-            break
-        }
-    }
-
-    # Skip .claude (already copied separately)
-    if ($item.FullName -match '\\.claude\\') {
-        $excluded = $true
-    }
-
-    -not $excluded
-} | ForEach-Object {
-    $relativePath = $_.FullName.Substring($source.Length + 1)
-    $targetPath = Join-Path "$releaseDir\$releaseName\spookys-automod-toolkit" $relativePath
-
-    if ($_.PSIsContainer) {
-        New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
-    } else {
-        $targetDir = Split-Path -Parent $targetPath
-        if (-not (Test-Path $targetDir)) {
-            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-        }
-        Copy-Item -Path $_.FullName -Destination $targetPath -Force
-    }
-}
-
-# Create zip
-Compress-Archive -Path "$releaseDir\$releaseName" -DestinationPath "$releaseDir\$releaseName.zip" -Force
-
-Write-Host "Release created: $releaseDir\$releaseName.zip"
+```bash
+cd /c/tmp/release
+powershell Compress-Archive -Path 'spookys-automod-toolkit-v1.X.X' -DestinationPath 'spookys-automod-toolkit-v1.X.X.zip' -Force
 ```
 
 ## Verification Checklist
 
-Before uploading a release:
+Before uploading:
 
-- [ ] README.txt exists at root level
-- [ ] .claude/skills/ directory is complete
-- [ ] All documentation in docs/ is present
-- [ ] templates/ directory is complete
-- [ ] src/ contains all source files
-- [ ] NO bin/ or obj/ directories
+- [ ] README.txt at root
+- [ ] .claude/skills/ complete
+- [ ] bin/Release/ directories present with DLLs
+- [ ] NO bin/Debug/ directories
+- [ ] NO obj/ directories
 - [ ] NO tests/ directory
 - [ ] NO .git/ directory
-- [ ] NO skyrim-script-headers/ directory
-- [ ] NO scripts/ directory (compiled test scripts)
-- [ ] CHANGELOG.md is present and up to date
-- [ ] README.md is present
-- [ ] Zip file size is reasonable (~5-20MB, not 140MB)
-
-## Why This Structure?
-
-**For End Users:**
-- Clean, professional appearance
-- No confusing test files
-- All documentation included
-- Ready to build and use
-
-**For Developers:**
-- Complete source code
-- All templates for development
-- Architecture documentation (CLAUDE.md)
-- Contribution guidelines
-
-**For Claude Code:**
-- Skills directory in expected location
-- Can be dropped directly into projects folder
-- Automatic skill detection
+- [ ] NO root test files (*.csx, ConditionApiTest.*, temp/)
+- [ ] CHANGELOG.md present and up to date
+- [ ] Zip size: 20-50MB (with Release binaries)
 
 ## Size Expectations
 
-A proper release should be:
-- **Compressed:** ~5-20 MB (without build artifacts)
-- **Uncompressed:** ~10-30 MB
+**With pre-built binaries:**
+- Compressed: ~20-50 MB
+- Uncompressed: ~100-150 MB
 
-If the zip is >40MB, you likely included bin/obj/tests directories.
+**Without binaries (wrong):**
+- Compressed: ~3-5 MB
+- Uncompressed: ~6-10 MB
+
+If zip is <10MB, you forgot to include bin/Release/ directories!
+
+## Why This Approach?
+
+**For End Users:**
+- Unzip and immediately use - no build required
+- `dotnet run --project src/SpookysAutomod.Cli` works immediately
+- Claude Code skills auto-detected
+
+**For Developers:**
+- Complete source code included
+- Can rebuild with `dotnet build`
+- All documentation present
+
+**For Claude Code:**
+- Drop into projects directory
+- Automatic skill detection
+- Ready to use immediately
