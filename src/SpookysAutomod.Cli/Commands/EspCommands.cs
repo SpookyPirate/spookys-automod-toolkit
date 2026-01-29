@@ -43,6 +43,8 @@ public static class EspCommands
         espCommand.AddCommand(CreateAddEncounterZoneCommand());
         espCommand.AddCommand(CreateAddLocationCommand());
         espCommand.AddCommand(CreateAddOutfitCommand());
+        espCommand.AddCommand(CreateViewRecordCommand());
+        espCommand.AddCommand(CreateOverrideCommand());
 
         return espCommand;
     }
@@ -2256,6 +2258,157 @@ public static class EspCommands
             }
         }
         Environment.ExitCode = 1;
+    }
+
+    private static Command CreateViewRecordCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdOption = new Option<string?>("--editor-id", "EditorID of the record to view");
+        var formIdOption = new Option<string?>("--form-id", "FormID of the record to view (e.g., 0x000800)");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+        var includeRawOption = new Option<bool>("--include-raw", "Include raw properties via reflection");
+
+        var cmd = new Command("view-record", "View detailed information about a record")
+        {
+            pluginArg,
+            editorIdOption,
+            formIdOption,
+            typeOption,
+            includeRawOption
+        };
+
+        cmd.SetHandler((plugin, editorId, formId, type, includeRaw, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.ViewRecord(plugin, editorId, formId, type, includeRaw);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success && result.Value != null)
+            {
+                var record = result.Value;
+                Console.WriteLine($"Record: {record.EditorId}");
+                Console.WriteLine($"FormKey: {record.FormKey}");
+                Console.WriteLine($"Type: {record.RecordType}");
+                Console.WriteLine();
+                Console.WriteLine("Properties:");
+                foreach (var (key, value) in record.Properties)
+                {
+                    if (value is List<Dictionary<string, object?>> list)
+                    {
+                        Console.WriteLine($"  {key}:");
+                        foreach (var item in list)
+                        {
+                            Console.WriteLine($"    - {string.Join(", ", item.Select(kv => $"{kv.Key}={kv.Value}"))}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  {key}: {value}");
+                    }
+                }
+
+                if (record.Conditions != null && record.Conditions.Count > 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Conditions:");
+                    for (int i = 0; i < record.Conditions.Count; i++)
+                    {
+                        var cond = record.Conditions[i];
+                        Console.WriteLine($"  [{i}] {cond.FunctionName} {cond.Operator} {cond.ComparisonValue}");
+                        if (!string.IsNullOrEmpty(cond.ParameterA))
+                            Console.WriteLine($"      ParamA: {cond.ParameterA}");
+                        if (!string.IsNullOrEmpty(cond.ParameterB))
+                            Console.WriteLine($"      ParamB: {cond.ParameterB}");
+                        Console.WriteLine($"      Flags: {cond.Flags}, RunOn: {cond.RunOn}");
+                    }
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, pluginArg, editorIdOption, formIdOption, typeOption, includeRawOption,
+           _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateOverrideCommand()
+    {
+        var sourceArg = new Argument<string>("source", "Path to the source plugin");
+        var outputOption = new Option<string>(
+            aliases: new[] { "--output", "-o" },
+            description: "Name of the output patch plugin (e.g., Patch.esp)");
+        var editorIdOption = new Option<string?>("--editor-id", "EditorID of the record to override");
+        var formIdOption = new Option<string?>("--form-id", "FormID of the record to override");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+        var dataFolderOption = new Option<string?>("--data-folder", "Data folder path (defaults to source plugin directory)");
+
+        outputOption.IsRequired = true;
+
+        var cmd = new Command("create-override", "Create an override patch for a record")
+        {
+            sourceArg,
+            outputOption,
+            editorIdOption,
+            formIdOption,
+            typeOption,
+            dataFolderOption
+        };
+
+        cmd.SetHandler((source, output, editorId, formId, type, dataFolder, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.CreateOverride(
+                source,
+                output,
+                editorId,
+                formId,
+                type,
+                false, // removeConditions - not yet implemented
+                dataFolder);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Created override patch: {result.Value}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, sourceArg, outputOption, editorIdOption, formIdOption, typeOption,
+           dataFolderOption, _jsonOption, _verboseOption);
+
+        return cmd;
     }
 }
 
