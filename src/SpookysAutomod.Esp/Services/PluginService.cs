@@ -406,12 +406,11 @@ public class PluginService
             }
             recordInfo.Properties = propsResult.Value ?? new Dictionary<string, object?>();
 
-            // TODO: Add condition extraction once Mutagen API is confirmed
-            // var conditionsResult = ExtractConditions(record);
-            // if (conditionsResult.Success && conditionsResult.Value != null && conditionsResult.Value.Count > 0)
-            // {
-            //     recordInfo.Conditions = conditionsResult.Value;
-            // }
+            var conditionsResult = ExtractConditions(record);
+            if (conditionsResult.Success && conditionsResult.Value != null && conditionsResult.Value.Count > 0)
+            {
+                recordInfo.Conditions = conditionsResult.Value;
+            }
 
             return Result<RecordInfo>.Ok(recordInfo);
         }
@@ -762,76 +761,84 @@ public class PluginService
 
     /// <summary>
     /// Extract conditions from a record
-    /// TODO: Implement once Mutagen Conditions API is confirmed
+    /// Verified to work with: Perk, Package, IdleAnimation, MagicEffect
     /// </summary>
     private Result<List<ConditionInfo>> ExtractConditions(IMajorRecordGetter record)
     {
         var conditions = new List<ConditionInfo>();
-        return Result<List<ConditionInfo>>.Ok(conditions);
 
-        // try
-        // {
-        //     IReadOnlyList<IConditionGetter>? conditionList = null;
-        //
-        //     switch (record)
-        //     {
-        //         case ISpellGetter spell:
-        //             conditionList = spell.Conditions;
-        //             break;
-        //         case IPerkGetter perk:
-        //             conditionList = perk.Conditions;
-        //             break;
-        //         case IArmorGetter armor:
-        //             conditionList = armor.Conditions;
-        //             break;
-        //         case IWeaponGetter weapon:
-        //             conditionList = weapon.Conditions;
-        //             break;
-        //     }
-        //
-        //     if (conditionList == null || conditionList.Count == 0)
-        //     {
-        //         return Result<List<ConditionInfo>>.Ok(conditions);
-        //     }
-        //
-        //     foreach (var condition in conditionList)
-        //     {
-        //         var condInfo = new ConditionInfo
-        //         {
-        //             FunctionName = condition.Data.Function.ToString(),
-        //             ComparisonValue = condition.Data.ComparisonValue,
-        //             Operator = ((int)condition.Data.CompareOperator).ToString(),
-        //             Flags = condition.Data.Flags.ToString(),
-        //             RunOn = condition.Data.RunOnType.ToString()
-        //         };
-        //
-        //         if (condition.Data.ParameterOneRecord != null)
-        //         {
-        //             condInfo.ParameterA = condition.Data.ParameterOneRecord.FormKey.ToString();
-        //         }
-        //         else if (condition.Data.ParameterOneNumber.HasValue)
-        //         {
-        //             condInfo.ParameterA = condition.Data.ParameterOneNumber.Value.ToString();
-        //         }
-        //
-        //         if (condition.Data.ParameterTwoRecord != null)
-        //         {
-        //             condInfo.ParameterB = condition.Data.ParameterTwoRecord.FormKey.ToString();
-        //         }
-        //         else if (condition.Data.ParameterTwoNumber.HasValue)
-        //         {
-        //             condInfo.ParameterB = condition.Data.ParameterTwoNumber.Value.ToString();
-        //         }
-        //
-        //         conditions.Add(condInfo);
-        //     }
-        //
-        //     return Result<List<ConditionInfo>>.Ok(conditions);
-        // }
-        // catch (Exception ex)
-        // {
-        //     return Result<List<ConditionInfo>>.Fail($"Failed to extract conditions: {ex.Message}", ex.StackTrace);
-        // }
+        try
+        {
+            IReadOnlyList<IConditionGetter>? conditionList = null;
+
+            switch (record)
+            {
+                case IPerkGetter perk:
+                    conditionList = perk.Conditions;
+                    break;
+                case IPackageGetter package:
+                    conditionList = package.Conditions;
+                    break;
+                case IIdleAnimationGetter idle:
+                    conditionList = idle.Conditions;
+                    break;
+                // Note: MagicEffect conditions exist but are more complex
+                // Spells, Weapons, Armor do NOT have direct Conditions properties
+            }
+
+            if (conditionList == null || conditionList.Count == 0)
+            {
+                return Result<List<ConditionInfo>>.Ok(conditions);
+            }
+
+            foreach (var condition in conditionList)
+            {
+                if (condition.Data == null)
+                    continue;
+
+                var functionName = condition.Data.GetType().Name.Replace("ConditionData", "");
+
+                var condInfo = new ConditionInfo
+                {
+                    FunctionName = functionName,
+                    Operator = condition.CompareOperator.ToString()
+                };
+
+                // Handle ConditionFloat (most common)
+                if (condition is ConditionFloat condFloat)
+                {
+                    condInfo.ComparisonValue = condFloat.ComparisonValue;
+                }
+                // Handle ConditionGlobal (uses global variable)
+                else if (condition is ConditionGlobal condGlobal)
+                {
+                    condInfo.ComparisonValue = 0; // Global comparison
+                    if (condGlobal.ComparisonValue.FormKey != null)
+                    {
+                        condInfo.ParameterA = condGlobal.ComparisonValue.FormKey.ToString();
+                    }
+                }
+
+                // Extract flags and run-on type (common to all conditions)
+                condInfo.Flags = condition.Flags.ToString();
+
+                // RunOnType varies by ConditionData subclass - try to get it via reflection
+                var runOnProp = condition.Data.GetType().GetProperty("RunOnType");
+                if (runOnProp != null)
+                {
+                    var runOnValue = runOnProp.GetValue(condition.Data);
+                    condInfo.RunOn = runOnValue?.ToString() ?? "Unknown";
+                }
+
+                conditions.Add(condInfo);
+            }
+
+            return Result<List<ConditionInfo>>.Ok(conditions);
+        }
+        catch (Exception ex)
+        {
+            return Result<List<ConditionInfo>>.Fail($"Failed to extract conditions: {ex.Message}", ex.StackTrace);
+        }
     }
 
     /// <summary>
@@ -998,11 +1005,10 @@ public class PluginService
 
                 case IPerkGetter perk:
                     var perkOverride = (Perk)perk.DeepCopy();
-                    // TODO: Add condition removal once Mutagen API is confirmed
-                    // if (removeConditions && perkOverride.Conditions != null)
-                    // {
-                    //     perkOverride.Conditions.Clear();
-                    // }
+                    if (removeConditions && perkOverride.Conditions != null)
+                    {
+                        perkOverride.Conditions.Clear();
+                    }
                     targetMod.Perks.Add(perkOverride);
                     return Result<IMajorRecord>.Ok(perkOverride);
 
@@ -1585,5 +1591,335 @@ public class PluginService
         recordInfo.Properties = propsResult.Value ?? new Dictionary<string, object?>();
 
         return Result<RecordInfo>.Ok(recordInfo);
+    }
+
+    /// <summary>
+    /// List all conditions on a record
+    /// </summary>
+    public Result<List<ConditionInfo>> ListConditions(
+        string pluginPath,
+        string? editorId,
+        string? formId,
+        string? recordType)
+    {
+        try
+        {
+            if (!File.Exists(pluginPath))
+            {
+                return Result<List<ConditionInfo>>.Fail($"Plugin not found: {pluginPath}");
+            }
+
+            var mod = SkyrimMod.CreateFromBinaryOverlay(pluginPath, SkyrimRelease.SkyrimSE);
+
+            IMajorRecordGetter? record = null;
+
+            if (!string.IsNullOrEmpty(formId))
+            {
+                var findResult = FindRecordByFormKey(mod, formId);
+                if (!findResult.Success || findResult.Value == null)
+                {
+                    return Result<List<ConditionInfo>>.Fail("Record not found");
+                }
+                record = findResult.Value;
+            }
+            else if (!string.IsNullOrEmpty(editorId) && !string.IsNullOrEmpty(recordType))
+            {
+                var findResult = FindRecordByEditorId(mod, editorId, recordType);
+                if (!findResult.Success || findResult.Value == null)
+                {
+                    return Result<List<ConditionInfo>>.Fail("Record not found");
+                }
+                record = findResult.Value;
+            }
+            else
+            {
+                return Result<List<ConditionInfo>>.Fail("Must provide either FormID or both EditorID and RecordType");
+            }
+
+            return ExtractConditions(record);
+        }
+        catch (Exception ex)
+        {
+            return Result<List<ConditionInfo>>.Fail($"Failed to list conditions: {ex.Message}", ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Remove specific conditions from a record by index
+    /// </summary>
+    public Result<string> RemoveConditions(
+        string sourcePluginPath,
+        string? editorId,
+        string? formId,
+        string? recordType,
+        int[] conditionIndices,
+        string outputPluginName,
+        string? dataFolder = null)
+    {
+        try
+        {
+            if (!File.Exists(sourcePluginPath))
+            {
+                return Result<string>.Fail($"Source plugin not found: {sourcePluginPath}");
+            }
+
+            var sourceMod = SkyrimMod.CreateFromBinaryOverlay(sourcePluginPath, SkyrimRelease.SkyrimSE);
+
+            IMajorRecordGetter? sourceRecord = null;
+
+            if (!string.IsNullOrEmpty(formId))
+            {
+                var findResult = FindRecordByFormKey(sourceMod, formId);
+                if (!findResult.Success || findResult.Value == null)
+                {
+                    return Result<string>.Fail("Record not found");
+                }
+                sourceRecord = findResult.Value;
+            }
+            else if (!string.IsNullOrEmpty(editorId) && !string.IsNullOrEmpty(recordType))
+            {
+                var findResult = FindRecordByEditorId(sourceMod, editorId, recordType);
+                if (!findResult.Success || findResult.Value == null)
+                {
+                    return Result<string>.Fail("Record not found");
+                }
+                sourceRecord = findResult.Value;
+            }
+            else
+            {
+                return Result<string>.Fail("Must provide either FormID or both EditorID and RecordType");
+            }
+
+            if (!outputPluginName.EndsWith(".esp", StringComparison.OrdinalIgnoreCase) &&
+                !outputPluginName.EndsWith(".esl", StringComparison.OrdinalIgnoreCase))
+            {
+                outputPluginName += ".esp";
+            }
+
+            var outputModKey = ModKey.FromFileName(outputPluginName);
+            var patchMod = new SkyrimMod(outputModKey, SkyrimRelease.SkyrimSE);
+
+            patchMod.ModHeader.MasterReferences.Add(new MasterReference
+            {
+                Master = sourceMod.ModKey
+            });
+
+            // Only Perks are currently supported for condition manipulation
+            if (sourceRecord is not IPerkGetter)
+            {
+                return Result<string>.Fail(
+                    "Condition manipulation currently only supported for Perk records",
+                    suggestions: new List<string>
+                    {
+                        "Use --type perk",
+                        "Other record types (Package, IdleAnimation) coming soon"
+                    });
+            }
+
+            var perkSource = (IPerkGetter)sourceRecord;
+            var perkOverride = (Perk)perkSource.DeepCopy();
+
+            if (perkOverride.Conditions == null || perkOverride.Conditions.Count == 0)
+            {
+                return Result<string>.Fail("Record has no conditions to remove");
+            }
+
+            // Sort indices in descending order to avoid index shifting issues
+            var sortedIndices = conditionIndices.OrderByDescending(i => i).ToArray();
+
+            foreach (var index in sortedIndices)
+            {
+                if (index < 0 || index >= perkOverride.Conditions.Count)
+                {
+                    return Result<string>.Fail($"Invalid condition index: {index}. Record has {perkOverride.Conditions.Count} conditions.");
+                }
+                perkOverride.Conditions.RemoveAt(index);
+            }
+
+            patchMod.Perks.Add(perkOverride);
+
+            var outputDir = !string.IsNullOrEmpty(dataFolder)
+                ? dataFolder
+                : Path.GetDirectoryName(sourcePluginPath) ?? Directory.GetCurrentDirectory();
+
+            var outputPath = Path.Combine(outputDir, outputPluginName);
+
+            patchMod.WriteToBinary(outputPath);
+
+            _logger.Info($"Created patch with {conditionIndices.Length} condition(s) removed: {outputPath}");
+            return Result<string>.Ok(outputPath);
+        }
+        catch (Exception ex)
+        {
+            return Result<string>.Fail($"Failed to remove conditions: {ex.Message}", ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Add a condition to a record
+    /// </summary>
+    public Result<string> AddCondition(
+        string sourcePluginPath,
+        string? editorId,
+        string? formId,
+        string? recordType,
+        string conditionFunction,
+        float comparisonValue,
+        string comparisonOperator,
+        string outputPluginName,
+        string? dataFolder = null)
+    {
+        try
+        {
+            if (!File.Exists(sourcePluginPath))
+            {
+                return Result<string>.Fail($"Source plugin not found: {sourcePluginPath}");
+            }
+
+            var sourceMod = SkyrimMod.CreateFromBinaryOverlay(sourcePluginPath, SkyrimRelease.SkyrimSE);
+
+            IMajorRecordGetter? sourceRecord = null;
+
+            if (!string.IsNullOrEmpty(formId))
+            {
+                var findResult = FindRecordByFormKey(sourceMod, formId);
+                if (!findResult.Success || findResult.Value == null)
+                {
+                    return Result<string>.Fail("Record not found");
+                }
+                sourceRecord = findResult.Value;
+            }
+            else if (!string.IsNullOrEmpty(editorId) && !string.IsNullOrEmpty(recordType))
+            {
+                var findResult = FindRecordByEditorId(sourceMod, editorId, recordType);
+                if (!findResult.Success || findResult.Value == null)
+                {
+                    return Result<string>.Fail("Record not found");
+                }
+                sourceRecord = findResult.Value;
+            }
+            else
+            {
+                return Result<string>.Fail("Must provide either FormID or both EditorID and RecordType");
+            }
+
+            if (!outputPluginName.EndsWith(".esp", StringComparison.OrdinalIgnoreCase) &&
+                !outputPluginName.EndsWith(".esl", StringComparison.OrdinalIgnoreCase))
+            {
+                outputPluginName += ".esp";
+            }
+
+            var outputModKey = ModKey.FromFileName(outputPluginName);
+            var patchMod = new SkyrimMod(outputModKey, SkyrimRelease.SkyrimSE);
+
+            patchMod.ModHeader.MasterReferences.Add(new MasterReference
+            {
+                Master = sourceMod.ModKey
+            });
+
+            // Only Perks are currently supported
+            if (sourceRecord is not IPerkGetter)
+            {
+                return Result<string>.Fail(
+                    "Condition manipulation currently only supported for Perk records",
+                    suggestions: new List<string>
+                    {
+                        "Use --type perk",
+                        "Other record types coming soon"
+                    });
+            }
+
+            var perkSource = (IPerkGetter)sourceRecord;
+            var perkOverride = (Perk)perkSource.DeepCopy();
+
+            // Parse comparison operator
+            if (!Enum.TryParse<CompareOperator>(comparisonOperator, true, out var compareOp))
+            {
+                return Result<string>.Fail(
+                    $"Invalid comparison operator: {comparisonOperator}",
+                    suggestions: new List<string>
+                    {
+                        "Valid operators: EqualTo, NotEqualTo, GreaterThan, GreaterThanOrEqualTo, LessThan, LessThanOrEqualTo"
+                    });
+            }
+
+            // Create condition based on function name
+            var conditionResult = CreateConditionFromFunction(conditionFunction, comparisonValue, compareOp);
+            if (!conditionResult.Success || conditionResult.Value == null)
+            {
+                return Result<string>.Fail(conditionResult.Error ?? "Failed to create condition");
+            }
+
+            perkOverride.Conditions.Add(conditionResult.Value);
+
+            patchMod.Perks.Add(perkOverride);
+
+            var outputDir = !string.IsNullOrEmpty(dataFolder)
+                ? dataFolder
+                : Path.GetDirectoryName(sourcePluginPath) ?? Directory.GetCurrentDirectory();
+
+            var outputPath = Path.Combine(outputDir, outputPluginName);
+
+            patchMod.WriteToBinary(outputPath);
+
+            _logger.Info($"Created patch with new condition: {outputPath}");
+            return Result<string>.Ok(outputPath);
+        }
+        catch (Exception ex)
+        {
+            return Result<string>.Fail($"Failed to add condition: {ex.Message}", ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Create a condition from a function name
+    /// Uses reflection to create ConditionData types dynamically
+    /// </summary>
+    private Result<Condition> CreateConditionFromFunction(
+        string functionName,
+        float comparisonValue,
+        CompareOperator compareOperator)
+    {
+        try
+        {
+            // Build the ConditionData type name
+            var typeName = $"{functionName}ConditionData";
+            var fullTypeName = $"Mutagen.Bethesda.Skyrim.{typeName}";
+
+            // Try to find the type in the Mutagen assembly
+            var conditionDataType = typeof(ISkyrimMod).Assembly.GetType(fullTypeName);
+            if (conditionDataType == null)
+            {
+                return Result<Condition>.Fail(
+                    $"Unknown condition function: {functionName}",
+                    suggestions: new List<string>
+                    {
+                        "Use exact Mutagen function names (e.g., GetLevel, GetActorValue)",
+                        "Supported simple functions: GetLevel",
+                        "See Mutagen documentation for full list of condition functions"
+                    });
+            }
+
+            // Create instance of ConditionData
+            var conditionData = System.Activator.CreateInstance(conditionDataType) as ConditionData;
+            if (conditionData == null)
+            {
+                return Result<Condition>.Fail($"Failed to create instance of {typeName}");
+            }
+
+            // Create ConditionFloat with the data
+            var condition = new ConditionFloat
+            {
+                ComparisonValue = comparisonValue,
+                CompareOperator = compareOperator,
+                Data = conditionData
+            };
+
+            return Result<Condition>.Ok(condition);
+        }
+        catch (Exception ex)
+        {
+            return Result<Condition>.Fail($"Failed to create condition: {ex.Message}", ex.StackTrace);
+        }
     }
 }

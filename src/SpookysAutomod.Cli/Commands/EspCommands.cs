@@ -49,6 +49,9 @@ public static class EspCommands
         espCommand.AddCommand(CreateBatchOverrideCommand());
         espCommand.AddCommand(CreateCompareRecordCommand());
         espCommand.AddCommand(CreateConflictsCommand());
+        espCommand.AddCommand(CreateListConditionsCommand());
+        espCommand.AddCommand(CreateRemoveConditionCommand());
+        espCommand.AddCommand(CreateAddConditionCommand());
 
         return espCommand;
     }
@@ -2690,6 +2693,222 @@ public static class EspCommands
             }
         }, dataFolderArg, pluginOption, editorIdOption, formIdOption, typeOption,
            _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateListConditionsCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var editorIdOption = new Option<string?>("--editor-id", "EditorID of the record");
+        var formIdOption = new Option<string?>("--form-id", "FormID of the record");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+
+        var cmd = new Command("list-conditions", "List all conditions on a record")
+        {
+            pluginArg,
+            editorIdOption,
+            formIdOption,
+            typeOption
+        };
+
+        cmd.SetHandler((plugin, editorId, formId, type, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.ListConditions(plugin, editorId, formId, type);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success && result.Value != null)
+            {
+                var conditions = result.Value;
+
+                if (conditions.Count == 0)
+                {
+                    Console.WriteLine("No conditions found on this record");
+                }
+                else
+                {
+                    Console.WriteLine($"Found {conditions.Count} condition(s):");
+                    Console.WriteLine();
+
+                    for (int i = 0; i < conditions.Count; i++)
+                    {
+                        var cond = conditions[i];
+                        Console.WriteLine($"[{i}] {cond.FunctionName}");
+                        Console.WriteLine($"    Operator: {cond.Operator}");
+                        Console.WriteLine($"    Comparison: {cond.ComparisonValue}");
+                        if (!string.IsNullOrEmpty(cond.Flags))
+                            Console.WriteLine($"    Flags: {cond.Flags}");
+                        if (!string.IsNullOrEmpty(cond.RunOn))
+                            Console.WriteLine($"    RunOn: {cond.RunOn}");
+                        if (!string.IsNullOrEmpty(cond.ParameterA))
+                            Console.WriteLine($"    ParamA: {cond.ParameterA}");
+                        if (!string.IsNullOrEmpty(cond.ParameterB))
+                            Console.WriteLine($"    ParamB: {cond.ParameterB}");
+                        Console.WriteLine();
+                    }
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, pluginArg, editorIdOption, formIdOption, typeOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateRemoveConditionCommand()
+    {
+        var sourceArg = new Argument<string>("source", "Path to the source plugin");
+        var outputOption = new Option<string>(
+            aliases: new[] { "--output", "-o" },
+            description: "Name of the output patch plugin");
+        var editorIdOption = new Option<string?>("--editor-id", "EditorID of the record");
+        var formIdOption = new Option<string?>("--form-id", "FormID of the record");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+        var indicesOption = new Option<string>(
+            "--indices",
+            description: "Comma-separated indices of conditions to remove (e.g., \"0,2,5\")");
+
+        outputOption.IsRequired = true;
+        indicesOption.IsRequired = true;
+
+        var cmd = new Command("remove-condition", "Remove specific conditions from a record")
+        {
+            sourceArg,
+            outputOption,
+            editorIdOption,
+            formIdOption,
+            typeOption,
+            indicesOption
+        };
+
+        cmd.SetHandler((source, output, editorId, formId, type, indicesStr, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            // Parse indices
+            int[] indices;
+            try
+            {
+                indices = indicesStr.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(int.Parse)
+                    .ToArray();
+            }
+            catch
+            {
+                Console.Error.WriteLine("Error: Invalid indices format. Use comma-separated numbers (e.g., \"0,2,5\")");
+                Environment.ExitCode = 1;
+                return;
+            }
+
+            var result = service.RemoveConditions(source, editorId, formId, type, indices, output, null);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Created patch with {indices.Length} condition(s) removed:");
+                Console.WriteLine(result.Value);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, sourceArg, outputOption, editorIdOption, formIdOption, typeOption,
+           indicesOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateAddConditionCommand()
+    {
+        var sourceArg = new Argument<string>("source", "Path to the source plugin");
+        var outputOption = new Option<string>(
+            aliases: new[] { "--output", "-o" },
+            description: "Name of the output patch plugin");
+        var editorIdOption = new Option<string?>("--editor-id", "EditorID of the record");
+        var formIdOption = new Option<string?>("--form-id", "FormID of the record");
+        var typeOption = new Option<string?>("--type", "Record type (required with --editor-id)");
+        var functionOption = new Option<string>(
+            "--function",
+            description: "Condition function (e.g., GetLevel, IsSneaking)");
+        var valueOption = new Option<float>(
+            "--value",
+            getDefaultValue: () => 1.0f,
+            description: "Comparison value (uses >= operator)");
+
+        outputOption.IsRequired = true;
+        functionOption.IsRequired = true;
+
+        var cmd = new Command("add-condition", "Add a condition to a record (uses >= comparison)")
+        {
+            sourceArg,
+            outputOption,
+            editorIdOption,
+            formIdOption,
+            functionOption,
+            valueOption
+        };
+
+        cmd.SetHandler((source, output, editorId, formId, function, value, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new PluginService(logger);
+
+            var result = service.AddCondition(source, editorId, formId, null, function, value, "GreaterThanOrEqualTo", output, null);
+
+            if (json)
+            {
+                Console.WriteLine(result.ToJson(true));
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Created patch with new {function} condition:");
+                Console.WriteLine(result.Value);
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.ErrorContext != null)
+                    Console.Error.WriteLine($"Context: {result.ErrorContext}");
+                if (result.Suggestions != null)
+                {
+                    Console.Error.WriteLine("Suggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, sourceArg, outputOption, editorIdOption, formIdOption,
+           functionOption, valueOption, _jsonOption, _verboseOption);
 
         return cmd;
     }
