@@ -1,6 +1,6 @@
 ---
 name: skyrim-esp
-description: Create and modify Skyrim plugin files (.esp/.esl). Use when the user wants to create a mod, add weapons, armor, spells, perks, books, quests, NPCs, factions, globals, leveled lists, encounter zones, locations, outfits, or form lists to a plugin. Includes quest aliases, script property management, type inspection, and detailed analysis. Also use when inspecting existing plugins or merging mods.
+description: Create and modify Skyrim plugin files (.esp/.esl). Use when the user wants to create a mod, add weapons, armor, spells, perks, books, quests, NPCs, factions, globals, leveled lists, encounter zones, locations, outfits, or form lists to a plugin. Includes quest aliases, script property management, type inspection, and detailed analysis. Also use when the user wants to view existing records, create override patches, search for records across plugins, manage perk conditions, compare record versions, or detect load order conflicts. Eliminates need for xEdit for viewing and patching operations.
 ---
 
 # Skyrim ESP Module
@@ -221,6 +221,86 @@ dotnet run --project src/SpookysAutomod.Cli -- esp generate-seq "<plugin>" --out
 ### Merge Plugins
 ```bash
 dotnet run --project src/SpookysAutomod.Cli -- esp merge "<source>.esp" "<target>.esp" --output "Merged.esp"
+```
+
+## Record Viewing and Override System (v1.7.0)
+
+View, analyze, and create override patches for existing records without xEdit.
+
+### View Record Details
+```bash
+# View by EditorID (requires --type)
+dotnet run --project src/SpookysAutomod.Cli -- esp view-record "<plugin>" --editor-id "<id>" --type <type>
+
+# View by FormID (type inferred)
+dotnet run --project src/SpookysAutomod.Cli -- esp view-record "<plugin>" --form-id "<formid>"
+```
+**Supported Types:** spell, weapon, armor, quest, npc, perk, faction, book, miscitem, global, leveleditem, formlist, outfit, location, encounterzone
+
+### Create Override Patches
+```bash
+# Create override patch (copies record to new plugin)
+dotnet run --project src/SpookysAutomod.Cli -- esp create-override "<source>.esp" -o "<patch>.esp" --editor-id "<id>" --type <type>
+```
+The patch automatically:
+- Adds source as master reference
+- Preserves FormKey from original
+- Loads after source in load order (wins conflicts)
+
+### Search for Records
+```bash
+# Search by pattern
+dotnet run --project src/SpookysAutomod.Cli -- esp find-record --search "<pattern>" --type <type> --plugin "<plugin>"
+
+# Search across all plugins in Data folder
+dotnet run --project src/SpookysAutomod.Cli -- esp find-record --search "<pattern>" --type <type> --data-folder "C:/Skyrim/Data" --all-plugins
+```
+
+### Batch Override Multiple Records
+```bash
+# Create overrides for all matching records
+dotnet run --project src/SpookysAutomod.Cli -- esp batch-override "<source>.esp" -o "<patch>.esp" --search "<pattern>*" --type <type>
+
+# Override specific records by EditorID list
+dotnet run --project src/SpookysAutomod.Cli -- esp batch-override "<source>.esp" -o "<patch>.esp" --type <type> --editor-ids "ID1,ID2,ID3"
+```
+
+### Compare Records
+```bash
+# Compare same record in two plugins
+dotnet run --project src/SpookysAutomod.Cli -- esp compare-record "<plugin1>.esp" "<plugin2>.esp" --editor-id "<id>" --type <type>
+```
+
+### Detect Conflicts
+```bash
+# Find which plugins modify a specific record
+dotnet run --project src/SpookysAutomod.Cli -- esp conflicts "<data-folder>" --editor-id "<id>" --type <type>
+
+# Check all conflicts for a plugin
+dotnet run --project src/SpookysAutomod.Cli -- esp conflicts "<data-folder>" --plugin "<plugin>.esp"
+```
+
+### Condition Management (Perks Only)
+
+**Note:** Conditions only work on Perk, Package, IdleAnimation, and MagicEffect records.
+
+**List Conditions:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp list-conditions "<plugin>" --editor-id "<perkId>" --type perk
+```
+
+**Add Condition:**
+```bash
+# Add level requirement
+dotnet run --project src/SpookysAutomod.Cli -- esp add-condition "<source>.esp" -o "<patch>.esp" --editor-id "<perkId>" --type perk --function GetLevel
+
+# Common functions: GetLevel, IsSneaking, IsRunning, IsSwimming, IsInCombat
+```
+
+**Remove Conditions:**
+```bash
+# Remove conditions by index (get indices from list-conditions)
+dotnet run --project src/SpookysAutomod.Cli -- esp remove-condition "<source>.esp" -o "<patch>.esp" --editor-id "<perkId>" --type perk --indices "0,2"
 ```
 
 ## Common Workflows

@@ -1126,6 +1126,214 @@ Winning override: MyWeaponTweaks.esp
 
 ---
 
+### list-conditions
+
+List all conditions on a record (Perk, Package, IdleAnimation, MagicEffect only).
+
+```bash
+esp list-conditions <plugin> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to plugin file |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--editor-id` | EditorID of the record |
+| `--form-id` | FormID of the record (alternative to EditorID) |
+| `--type` | Record type (required with --editor-id): perk, package, idle, magiceffect |
+
+**Examples:**
+```bash
+# List conditions on a perk by EditorID
+esp list-conditions "MyMod.esp" --editor-id "MyPerk" --type perk
+
+# List conditions using FormID
+esp list-conditions "MyMod.esp" --form-id "000800:MyMod.esp"
+
+# Get JSON output for parsing
+esp list-conditions "MyMod.esp" --editor-id "MyPerk" --type perk --json
+```
+
+**Output:**
+```
+Found 2 condition(s):
+
+[0] GetLevel
+    Operator: GreaterThanOrEqualTo
+    Comparison: 10
+    Flags: 0
+    RunOn: Subject
+
+[1] IsSneaking
+    Operator: EqualTo
+    Comparison: 1
+    Flags: 0
+    RunOn: Subject
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": [
+    {
+      "functionName": "GetLevel",
+      "comparisonValue": 10,
+      "operator": "GreaterThanOrEqualTo",
+      "flags": "0",
+      "runOn": "Subject"
+    },
+    {
+      "functionName": "IsSneaking",
+      "comparisonValue": 1,
+      "operator": "EqualTo",
+      "flags": "0",
+      "runOn": "Subject"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Only works on record types that support conditions
+- Use index numbers from output for remove-condition command
+- Conditions are numbered starting from 0
+
+---
+
+### add-condition
+
+Add a condition to a record (creates override patch).
+
+```bash
+esp add-condition <source> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `source` | Path to source plugin |
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--output`, `-o` | Yes | Name of output patch plugin |
+| `--editor-id` | Conditional | EditorID of record (requires --type) |
+| `--form-id` | Conditional | FormID of record (alternative to EditorID) |
+| `--type` | Conditional | Record type (required with --editor-id) |
+| `--function` | Yes | Condition function name (e.g., GetLevel, IsSneaking) |
+
+**Common Condition Functions:**
+- `GetLevel` - Check player/actor level
+- `IsSneaking` - Check if sneaking
+- `IsRunning` - Check if running
+- `IsSwimming` - Check if swimming
+- `IsInCombat` - Check if in combat
+- `GetActorValue` - Check actor value (requires parameters)
+- See Mutagen documentation for full list
+
+**Examples:**
+```bash
+# Add level requirement to perk
+esp add-condition "MyMod.esp" -o "MyMod_Patch.esp" \
+  --editor-id "MyPerk" --type perk --function GetLevel
+
+# Add sneak condition using FormID
+esp add-condition "MyMod.esp" -o "Patch.esp" \
+  --form-id "000800:MyMod.esp" --function IsSneaking
+
+# Add condition with JSON output
+esp add-condition "MyMod.esp" -o "Patch.esp" \
+  --editor-id "MyPerk" --type perk --function IsInCombat --json
+```
+
+**Output:**
+```
+Created patch with new GetLevel condition:
+MyMod_Patch.esp
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": "MyMod_Patch.esp"
+}
+```
+
+**Notes:**
+- Creates new patch plugin with source as master
+- Comparison value defaults to 1.0 (true/false)
+- Comparison operator defaults to >= (GreaterThanOrEqualTo)
+- For custom values, manually edit patch or use remove+add sequence
+- Only works on Perk, Package, IdleAnimation, MagicEffect records
+
+---
+
+### remove-condition
+
+Remove specific conditions from a record (creates override patch).
+
+```bash
+esp remove-condition <source> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `source` | Path to source plugin |
+
+**Options:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--output`, `-o` | Yes | Name of output patch plugin |
+| `--editor-id` | Conditional | EditorID of record (requires --type) |
+| `--form-id` | Conditional | FormID of record (alternative) |
+| `--type` | Conditional | Record type (required with --editor-id) |
+| `--indices` | Yes | Comma-separated indices to remove (e.g., "0,2,5") |
+
+**Examples:**
+```bash
+# Remove first condition (index 0)
+esp remove-condition "MyMod.esp" -o "Patch.esp" \
+  --editor-id "MyPerk" --type perk --indices "0"
+
+# Remove multiple conditions
+esp remove-condition "MyMod.esp" -o "Patch.esp" \
+  --form-id "000800:MyMod.esp" --indices "0,2,5"
+
+# Remove all but one (if record has 3 conditions, remove 1 and 2)
+esp remove-condition "MyMod.esp" -o "Patch.esp" \
+  --editor-id "MyPerk" --type perk --indices "1,2"
+```
+
+**Output:**
+```
+Created patch with 2 condition(s) removed:
+MyMod_Patch.esp
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": "MyMod_Patch.esp"
+}
+```
+
+**Notes:**
+- Use list-conditions first to see indices
+- Indices are 0-based (first condition is 0)
+- Creates new patch plugin with source as master
+- Can remove multiple conditions in single operation
+- Specify indices in any order (e.g., "2,0,1" works same as "0,1,2")
+
+---
+
 ## Workflow Examples
 
 ### Creating an Override Patch
@@ -1170,4 +1378,47 @@ esp compare-record "Skyrim.esm" "WinningMod.esp" --editor-id "IronSword" --type 
 
 # Create your own override to win
 esp create-override "Skyrim.esm" -o "MyFinalTweak.esp" --editor-id "IronSword" --type weapon
+```
+
+### Condition Management Workflow
+
+```bash
+# 1. List existing conditions on a perk
+esp list-conditions "MyMod.esp" --editor-id "MyPerk" --type perk
+
+# 2. Add a new level requirement
+esp add-condition "MyMod.esp" -o "MyMod_Conditioned.esp" \
+  --editor-id "MyPerk" --type perk --function GetLevel
+
+# 3. Verify the condition was added
+esp list-conditions "MyMod_Conditioned.esp" --editor-id "MyPerk" --type perk
+
+# 4. Remove unwanted conditions (e.g., remove index 0)
+esp remove-condition "MyMod_Conditioned.esp" -o "MyMod_Final.esp" \
+  --editor-id "MyPerk" --type perk --indices "0"
+
+# 5. Final verification
+esp list-conditions "MyMod_Final.esp" --editor-id "MyPerk" --type perk
+```
+
+### Removing Spell Conditions from Existing Mod
+
+Common use case for removing targeting restrictions:
+
+```bash
+# 1. View the spell to understand structure
+esp view-record "SomeMod.esp" --editor-id "ProblematicSpell" --type spell
+
+# 2. Check what's in the mod (spells don't have conditions directly)
+# Note: Conditions are on Perk/Package/MagicEffect, not Spell records
+
+# 3. If targeting is via MagicEffect, find the effect FormID
+esp view-record "SomeMod.esp" --editor-id "ProblematicSpell" --type spell --json
+
+# 4. View the magic effect conditions
+esp list-conditions "SomeMod.esp" --form-id "000XXX:SomeMod.esp"
+
+# 5. Remove targeting conditions
+esp remove-condition "SomeMod.esp" -o "SomeMod_Patch.esp" \
+  --form-id "000XXX:SomeMod.esp" --indices "0,1"
 ```

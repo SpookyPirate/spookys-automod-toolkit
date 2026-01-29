@@ -734,6 +734,401 @@ dotnet run --project src/SpookysAutomod.Cli -- esp add-weapon "ModA_ModB_Patch.e
 
 ---
 
+## Record Viewing and Override System (v1.7.0)
+
+The Record Viewing and Override System eliminates the need for xEdit when analyzing or patching existing mods. All operations support JSON output for AI parsing.
+
+### Viewing Records
+
+**Use Cases:**
+- Inspect existing mod records to understand structure
+- Extract property values for documentation
+- Verify record exists before creating override
+- Debug why a mod isn't working as expected
+
+**View by EditorID:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp view-record "SomeMod.esp" --editor-id "UniqueWeapon" --type weapon --json
+```
+
+**View by FormID:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp view-record "SomeMod.esp" --form-id "000802:SomeMod.esp" --json
+```
+
+**Supported Record Types:**
+- Spell, Weapon, Armor, Quest, NPC, Perk
+- Faction, Book, MiscItem, Global
+- LeveledItem, FormList, Outfit, Location, EncounterZone
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "editorId": "UniqueWeapon",
+    "formKey": "000802:SomeMod.esp",
+    "recordType": "WeaponBinaryOverlay",
+    "properties": {
+      "name": "Legendary Sword",
+      "damage": 45,
+      "weight": 15,
+      "value": 500,
+      "animationType": "TwoHandSword"
+    }
+  }
+}
+```
+
+### Creating Override Patches
+
+**Use Cases:**
+- Fix bugs in existing mods without modifying original
+- Balance mod content (reduce damage, adjust costs)
+- Remove unwanted features (conditions, effects)
+- Create compatibility patches between mods
+
+**Basic Override:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp create-override "OriginalMod.esp" \
+  -o "OriginalMod_Tweaks.esp" \
+  --editor-id "OP_Weapon" \
+  --type weapon \
+  --json
+```
+
+**How Overrides Work:**
+1. Command loads original record using DeepCopy
+2. Creates new patch plugin with original as master
+3. Adds copied record to patch (preserving FormKey)
+4. Patch loads after original in load order, winning conflicts
+5. User can then modify the patched record manually in xEdit
+
+**Master Management:**
+Mutagen automatically adds master references based on FormKeys. No manual master management needed.
+
+### Searching for Records
+
+**Use Cases:**
+- Find all records matching a pattern
+- Locate records before creating overrides
+- Discover what records a mod contains
+- Filter by record type to narrow results
+
+**Search by Pattern:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp find-record \
+  --search "Iron" \
+  --type weapon \
+  --plugin "Skyrim.esm" \
+  --json
+```
+
+**Search Across All Plugins:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp find-record \
+  --search "Potion" \
+  --type potion \
+  --data-folder "C:/Skyrim/Data" \
+  --all-plugins \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": [
+    {
+      "pluginName": "Skyrim.esm",
+      "editorId": "IronSword",
+      "formKey": "Skyrim.esm:0x00012EB7",
+      "recordType": "WeaponBinaryOverlay",
+      "name": "Iron Sword"
+    }
+  ]
+}
+```
+
+### Batch Override Operations
+
+**Use Cases:**
+- Create patches for multiple records at once
+- Apply same modification to all matching records
+- Bulk operations for large-scale patching
+
+**Batch by Pattern:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp batch-override "Skyrim.esm" \
+  -o "FireSpells_Nerf.esp" \
+  --search "Fire*" \
+  --type spell \
+  --json
+```
+
+**Batch by Explicit List:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp batch-override "MyMod.esp" \
+  -o "Batch_Patch.esp" \
+  --type weapon \
+  --editor-ids "Sword1,Sword2,Sword3" \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "recordsModified": 5,
+    "modifiedRecords": ["FireBolt", "FireRune", "Fireball", "Firestorm", "FireBreath"],
+    "patchPath": "FireSpells_Nerf.esp"
+  }
+}
+```
+
+### Comparing Records
+
+**Use Cases:**
+- See what a patch changes vs original
+- Debug why two mods conflict
+- Verify your override matches expectations
+- Document changes made by a mod
+
+**Compare Original vs Patch:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp compare-record \
+  "OriginalMod.esp" "OriginalMod_Tweaked.esp" \
+  --editor-id "SomeSpell" \
+  --type spell \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "original": {
+      "editorId": "SomeSpell",
+      "properties": {"baseCost": 100, "castType": "FireAndForget"}
+    },
+    "modified": {
+      "editorId": "SomeSpell",
+      "properties": {"baseCost": 50, "castType": "FireAndForget"}
+    },
+    "differences": {
+      "baseCost": {
+        "field": "baseCost",
+        "originalValue": 100,
+        "modifiedValue": 50
+      }
+    }
+  }
+}
+```
+
+### Conflict Detection
+
+**Use Cases:**
+- Identify which mods modify the same record
+- Find winning override in load order
+- Detect compatibility issues between mods
+- Plan load order adjustments
+
+**Check Conflicts for Specific Record:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp conflicts "C:/Skyrim/Data" \
+  --editor-id "IronSword" \
+  --type weapon \
+  --json
+```
+
+**Check All Conflicts for a Plugin:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp conflicts "C:/Skyrim/Data" \
+  --plugin "MyMod.esp" \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "formKey": "Skyrim.esm:0x00012EB7",
+    "editorId": "IronSword",
+    "conflicts": [
+      {"pluginName": "Skyrim.esm", "loadOrder": 0, "isWinner": false},
+      {"pluginName": "BalanceMod.esp", "loadOrder": 42, "isWinner": false},
+      {"pluginName": "MyTweaks.esp", "loadOrder": 87, "isWinner": true}
+    ],
+    "winningPlugin": "MyTweaks.esp"
+  }
+}
+```
+
+### Condition Management
+
+**Use Cases:**
+- Remove targeting restrictions from spells
+- Add level requirements to perks
+- Modify perk unlock conditions
+- Debug why perk isn't activating
+
+**Supported Record Types:**
+- Perk (most common)
+- Package
+- IdleAnimation
+- MagicEffect
+
+**Note:** Spells, Weapons, and Armor do NOT have direct Conditions properties. If you need to modify spell targeting, you must work with the underlying MagicEffect record.
+
+**List Conditions on a Perk:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp list-conditions "MyMod.esp" \
+  --editor-id "MyPerk" \
+  --type perk \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": [
+    {
+      "functionName": "GetLevel",
+      "comparisonValue": 10,
+      "operator": "GreaterThanOrEqualTo",
+      "flags": "0",
+      "runOn": "Subject"
+    }
+  ]
+}
+```
+
+**Add Condition to Perk:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- esp add-condition "MyMod.esp" \
+  -o "MyMod_Conditioned.esp" \
+  --editor-id "MyPerk" \
+  --type perk \
+  --function GetLevel \
+  --json
+```
+
+**Common Condition Functions:**
+- `GetLevel` - Player/actor level check
+- `IsSneaking`, `IsRunning`, `IsSwimming` - State checks
+- `IsInCombat` - Combat state
+- `GetActorValue` - Check stats (requires parameters)
+
+**Remove Conditions:**
+```bash
+# First, list conditions to see indices
+dotnet run --project src/SpookysAutomod.Cli -- esp list-conditions "SomeMod.esp" \
+  --editor-id "RestrictedPerk" \
+  --type perk
+
+# Then remove by index (e.g., remove first and third conditions)
+dotnet run --project src/SpookysAutomod.Cli -- esp remove-condition "SomeMod.esp" \
+  -o "SomeMod_Unrestricted.esp" \
+  --editor-id "RestrictedPerk" \
+  --type perk \
+  --indices "0,2" \
+  --json
+```
+
+### Complete Workflow Example: Patching an Existing Mod
+
+**Scenario:** User reports a perk from "CoolPerks.esp" doesn't work. You need to investigate and fix it.
+
+```bash
+# Step 1: View the perk to understand its structure
+dotnet run --project src/SpookysAutomod.Cli -- esp view-record "CoolPerks.esp" \
+  --editor-id "BrokenPerk" \
+  --type perk \
+  --json
+
+# Step 2: Check conditions (might be too restrictive)
+dotnet run --project src/SpookysAutomod.Cli -- esp list-conditions "CoolPerks.esp" \
+  --editor-id "BrokenPerk" \
+  --type perk \
+  --json
+
+# Step 3: Create override patch
+dotnet run --project src/SpookysAutomod.Cli -- esp create-override "CoolPerks.esp" \
+  -o "CoolPerks_Fixed.esp" \
+  --editor-id "BrokenPerk" \
+  --type perk \
+  --json
+
+# Step 4: Remove problematic conditions (found at indices 1 and 2)
+dotnet run --project src/SpookysAutomod.Cli -- esp remove-condition "CoolPerks_Fixed.esp" \
+  -o "CoolPerks_Final.esp" \
+  --editor-id "BrokenPerk" \
+  --type perk \
+  --indices "1,2" \
+  --json
+
+# Step 5: Verify the fix
+dotnet run --project src/SpookysAutomod.Cli -- esp list-conditions "CoolPerks_Final.esp" \
+  --editor-id "BrokenPerk" \
+  --type perk \
+  --json
+
+# Step 6: Compare to original to document changes
+dotnet run --project src/SpookysAutomod.Cli -- esp compare-record \
+  "CoolPerks.esp" "CoolPerks_Final.esp" \
+  --editor-id "BrokenPerk" \
+  --type perk \
+  --json
+```
+
+### Best Practices for AI Assistants
+
+**When to Use view-record:**
+- User asks "what does this mod contain?"
+- User reports a bug in existing mod
+- Need to verify FormIDs before creating references
+- User wants to understand how a record is configured
+
+**When to Use create-override:**
+- User wants to modify existing mod without touching original
+- User needs compatibility patch between mods
+- User wants to balance/nerf mod content
+- User reports bug that requires record modification
+
+**When to Use find-record:**
+- User doesn't know exact EditorID
+- User wants to see all records of a type
+- User asks "what mods add X?"
+- Need to search across entire load order
+
+**When to Use Conditions:**
+- User wants to add/remove perk requirements
+- User reports spell can't target NPCs
+- User wants to modify when perk activates
+- User needs to remove level restrictions
+
+**Error Handling:**
+Always parse JSON responses and check `success` field:
+```bash
+result=$(dotnet run --project src/SpookysAutomod.Cli -- esp view-record "Mod.esp" --editor-id "Test" --type perk --json)
+success=$(echo "$result" | jq -r '.success')
+
+if [ "$success" = "true" ]; then
+  echo "Success!"
+else
+  error=$(echo "$result" | jq -r '.error')
+  echo "Error: $error"
+  # Check suggestions field for helpful hints
+fi
+```
+
+---
+
 ## Audio Workflows
 
 ### Extract Voice Files for Analysis
