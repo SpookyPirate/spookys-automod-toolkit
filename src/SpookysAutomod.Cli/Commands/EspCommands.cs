@@ -32,6 +32,7 @@ public static class EspCommands
         espCommand.AddCommand(CreateAddBookCommand());
         espCommand.AddCommand(CreateAddPerkCommand());
         espCommand.AddCommand(CreateAttachScriptCommand());
+        espCommand.AddCommand(CreateSetPropertyCommand());
         espCommand.AddCommand(CreateGenerateSeqCommand());
         espCommand.AddCommand(CreateListMastersCommand());
         espCommand.AddCommand(CreateMergeCommand());
@@ -609,6 +610,132 @@ public static class EspCommands
             }
         }, pluginArg, questOption, scriptOption,
            _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateSetPropertyCommand()
+    {
+        var pluginArg = new Argument<string>("plugin", "Path to the plugin file");
+        var questOption = new Option<string>("--quest", "Editor ID of the quest") { IsRequired = true };
+        var scriptOption = new Option<string>("--script", "Name of the script") { IsRequired = true };
+        var propertyOption = new Option<string>("--property", "Property name") { IsRequired = true };
+        var typeOption = new Option<string>("--type", "Property type: object, alias, int, float, bool, string") { IsRequired = true };
+        var valueOption = new Option<string>("--value", "Property value (for object: 'Plugin.esp|0xFormID', for alias: alias name)") { IsRequired = true };
+        var aliasTargetOption = new Option<string?>("--alias-target", "Target alias name (for setting properties on alias scripts instead of quest scripts)");
+
+        var cmd = new Command("set-property", "Set a script property on a quest or alias script")
+        {
+            pluginArg, questOption, scriptOption, propertyOption, typeOption, valueOption, aliasTargetOption
+        };
+
+        cmd.SetHandler((context) =>
+        {
+            var plugin = context.ParseResult.GetValueForArgument(pluginArg);
+            var questId = context.ParseResult.GetValueForOption(questOption)!;
+            var scriptName = context.ParseResult.GetValueForOption(scriptOption)!;
+            var propertyName = context.ParseResult.GetValueForOption(propertyOption)!;
+            var propType = context.ParseResult.GetValueForOption(typeOption)!;
+            var value = context.ParseResult.GetValueForOption(valueOption)!;
+            var aliasTarget = context.ParseResult.GetValueForOption(aliasTargetOption);
+            var json = context.ParseResult.GetValueForOption(_jsonOption);
+            var verbose = context.ParseResult.GetValueForOption(_verboseOption);
+
+            var logger = CreateLogger(json, verbose);
+            var pluginService = new PluginService(logger);
+            var propService = new ScriptPropertyService(logger);
+
+            var loadResult = pluginService.LoadPluginForEdit(plugin);
+            if (!loadResult.Success)
+            {
+                OutputError(loadResult.Error!, json);
+                return;
+            }
+
+            var mod = loadResult.Value!;
+
+            // Find the quest
+            var quest = mod.Quests.FirstOrDefault(q => q.EditorID == questId);
+            if (quest == null)
+            {
+                OutputError($"Quest not found: {questId}", json);
+                return;
+            }
+
+            // Find the script (on quest or on alias)
+            ScriptEntry? script = null;
+            if (!string.IsNullOrEmpty(aliasTarget))
+            {
+                // Find script on alias (via QuestFragmentAlias)
+                var alias = quest.Aliases.FirstOrDefault(a => a.Name == aliasTarget);
+                if (alias == null)
+                {
+                    OutputError($"Alias not found: {aliasTarget}", json);
+                    return;
+                }
+                script = propService.FindAliasScript(quest, aliasTarget, scriptName);
+                if (script == null)
+                {
+                    OutputError($"Script '{scriptName}' not found on alias '{aliasTarget}'", json,
+                        suggestions: new[] {
+                            "Attach the script first with 'esp attach-script' or by creating the alias with a script",
+                            "Note: Alias scripts are stored in QuestFragmentAlias within the Quest's VirtualMachineAdapter"
+                        });
+                    return;
+                }
+            }
+            else
+            {
+                // Find script on quest
+                script = propService.FindQuestScript(quest, scriptName);
+                if (script == null)
+                {
+                    OutputError($"Script '{scriptName}' not found on quest '{questId}'", json,
+                        suggestions: new[] { "Attach the script first with 'esp attach-script'" });
+                    return;
+                }
+            }
+
+            // Set the property based on type
+            bool success = propType.ToLowerInvariant() switch
+            {
+                "object" => propService.SetObjectProperty(script, propertyName, value),
+                "alias" => propService.SetAliasProperty(script, propertyName, quest, value),
+                "int" => propService.SetIntProperty(script, propertyName, int.Parse(value)),
+                "float" => propService.SetFloatProperty(script, propertyName, float.Parse(value)),
+                "bool" => propService.SetBoolProperty(script, propertyName, bool.Parse(value)),
+                "string" => propService.SetStringProperty(script, propertyName, value),
+                _ => false
+            };
+
+            if (!success)
+            {
+                OutputError($"Failed to set property '{propertyName}'", json);
+                return;
+            }
+
+            var saveResult = pluginService.SavePlugin(mod, plugin);
+
+            if (json)
+            {
+                Console.WriteLine(new
+                {
+                    success = saveResult.Success,
+                    result = new { quest = questId, script = scriptName, property = propertyName, type = propType, value },
+                    error = saveResult.Error
+                }.ToJson());
+            }
+            else if (saveResult.Success)
+            {
+                var target = !string.IsNullOrEmpty(aliasTarget) ? $"alias '{aliasTarget}'" : $"quest '{questId}'";
+                Console.WriteLine($"Set {propType} property '{propertyName}' = '{value}' on script '{scriptName}' ({target})");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {saveResult.Error}");
+                Environment.ExitCode = 1;
+            }
+        });
 
         return cmd;
     }
