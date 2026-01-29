@@ -8,6 +8,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-01-29
+
+### Added
+
+- **Record Viewing and Override System** - Comprehensive tools for inspecting and modifying existing records
+    - `esp view-record` - View detailed information about any record by EditorID or FormID
+        - Supports 15 record types: Spell, Weapon, Armor, Quest, NPC, Perk, Faction, Book, MiscItem, Global, LeveledItem, FormList, Outfit, Location, EncounterZone
+        - Extracts type-specific properties (spell effects, weapon damage, armor ratings, etc.)
+        - Optional `--include-raw` flag for reflection-based property extraction
+        - Full JSON output support for AI parsing
+    - `esp create-override` - Create override patches for existing records
+        - Automatically adds source plugin as master reference
+        - Preserves all record data via DeepCopy
+        - Creates patches that load after source in load order
+        - Supports all major record types
+    - `esp find-record` - Search for records across one or multiple plugins
+        - Pattern matching on EditorID and Name fields
+        - Filter by record type for faster searches
+        - Search single plugin or all plugins in data folder
+        - Returns plugin name, FormKey, EditorID, and record type
+    - `esp batch-override` - Create overrides for multiple records at once
+        - Batch by search pattern or explicit EditorID list
+        - Filter by record type
+        - All overrides in single patch plugin
+        - Reports number of records modified
+    - `esp compare-record` - Compare two versions of the same record
+        - Side-by-side property comparison
+        - Highlights differences between original and modified
+        - Useful for understanding what patches change
+        - Supports EditorID or FormID lookup
+    - `esp conflicts` - Detect load order conflicts
+        - Scans all plugins in data folder
+        - Shows which plugins modify the same record
+        - Reports load order positions
+        - Identifies winning override (last in load order)
+
+- **Mutagen Conditions API Research** - Comprehensive documentation on working with conditions
+    - Created `docs/MUTAGEN_CONDITIONS_API.md` with findings from API research
+    - Discovered 157 condition-related types in Mutagen
+    - Documented verified vs. unverified API patterns
+    - Added research tools in `src/SpookysAutomod.Esp/Research/`
+    - Note: Perks have Conditions property; Spells/Weapons/Armor do not
+
+### Changed
+
+- **Enhanced Error Messages** - All new commands provide helpful suggestions on failure
+- **Improved JSON Output** - Consistent Result<T> pattern across all operations
+- **Better FormKey Handling** - Support for both short and long FormKey formats
+
+### Developer Notes
+
+- Added 8 new model classes in `SpookysAutomod.Core.Models`
+- Extended PluginService with 6 major methods (~1,640 lines)
+- Added 6 new CLI commands to EspCommands (~910 lines)
+- Total new code: ~3,500 lines
+- No new dependencies required
+
+### Known Limitations
+
+- Condition support temporarily disabled pending Mutagen API verification
+- Conditions work on Perks but not Spells/Weapons/Armor in current Mutagen version
+- Future versions will add full condition manipulation support
+
 ## [1.6.0] - 2026-01-20
 
 ### Added

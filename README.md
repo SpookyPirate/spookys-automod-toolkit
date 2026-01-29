@@ -520,6 +520,14 @@ esp auto-fill-all "Mod.esp" --script-dir "./Scripts/Source" --data-folder "C:/Sk
 esp generate-seq "Mod.esp" --output "./"
 esp merge "Source.esp" "Target.esp" --output "Merged.esp"
 esp list-masters "Mod.esp"
+
+# Record Viewing & Override System
+esp view-record "Mod.esp" --editor-id "RecordID" --type spell --json
+esp create-override "Source.esp" -o "Patch.esp" --editor-id "RecordID" --type weapon
+esp find-record --search "Iron" --type weapon --plugin "Skyrim.esm"
+esp batch-override "Source.esp" -o "Patch.esp" --search "Fire*" --type spell
+esp compare-record "Mod1.esp" "Mod2.esp" --editor-id "RecordID" --type armor
+esp conflicts "C:/Skyrim/Data" --editor-id "IronSword" --type weapon
 ```
 
 ### Scripts (papyrus)

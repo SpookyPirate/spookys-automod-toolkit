@@ -767,3 +767,407 @@ esp info "MyMod.esp" --json
   "suggestions": ["Check the file path"]
 }
 ```
+
+---
+
+### view-record
+
+View detailed information about a specific record in a plugin.
+
+```bash
+esp view-record <plugin> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin` | Path to the plugin file |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--editor-id` | EditorID of the record to view |
+| `--form-id` | FormID of the record (e.g., "0x000800") |
+| `--type` | Record type (required with --editor-id) |
+| `--include-raw` | Include raw properties via reflection |
+
+**Supported Record Types:**
+spell, weapon, armor, quest, npc, perk, faction, book, miscitem, global, leveleditem, formlist, outfit, location, encounterzone
+
+**Examples:**
+```bash
+# View spell by EditorID
+esp view-record "MyMod.esp" --editor-id "MySpell" --type spell
+
+# View weapon by FormID
+esp view-record "Skyrim.esm" --form-id "0x00012EB7"
+
+# View with JSON output
+esp view-record "MyMod.esp" --editor-id "MyQuest" --type quest --json
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": {
+    "editorId": "MySpell",
+    "formKey": "MyMod.esp:0x000800",
+    "recordType": "Spell",
+    "properties": {
+      "name": "My Custom Spell",
+      "type": "Spell",
+      "baseCost": 50,
+      "castType": "FireAndForget",
+      "targetType": "Self",
+      "effectCount": 1
+    }
+  }
+}
+```
+
+---
+
+### create-override
+
+Create an override patch for a record from another plugin.
+
+```bash
+esp create-override <source> --output <output> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `source` | Path to the source plugin |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--output`, `-o` | Name of the output patch plugin (required) |
+| `--editor-id` | EditorID of the record to override |
+| `--form-id` | FormID of the record to override |
+| `--type` | Record type (required with --editor-id) |
+| `--data-folder` | Data folder path (defaults to source directory) |
+
+**How it works:**
+1. Loads the source plugin as read-only
+2. Finds the specified record
+3. Creates a new patch plugin with source as master
+4. Deep copies the record into the patch
+5. The patch plugin loads after the source in load order
+
+**Examples:**
+```bash
+# Override a spell
+esp create-override "MyMod.esp" -o "MyMod_Patch.esp" --editor-id "MySpell" --type spell
+
+# Override by FormID
+esp create-override "Skyrim.esm" -o "Vanilla_Patch.esp" --form-id "Skyrim.esm:0x00012EB7"
+
+# Override with custom data folder
+esp create-override "MyMod.esp" -o "Patch.esp" --editor-id "IronSword" --type weapon --data-folder "C:\Skyrim\Data"
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": "C:\\Skyrim\\Data\\MyMod_Patch.esp"
+}
+```
+
+---
+
+### find-record
+
+Find records across one or multiple plugins.
+
+```bash
+esp find-record [options]
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--search` | Search pattern for EditorID or Name |
+| `--editor-id` | Exact EditorID to find |
+| `--type` | Record type to filter by |
+| `--plugin` | Path to specific plugin to search |
+| `--data-folder` | Data folder to search all plugins |
+| `--all-plugins` | Search all plugins in data folder |
+
+**Examples:**
+```bash
+# Find all weapons containing "Iron"
+esp find-record --search "Iron" --type weapon --plugin "Skyrim.esm"
+
+# Find specific spell across all plugins
+esp find-record --editor-id "Flames" --data-folder "C:\Skyrim\Data" --all-plugins
+
+# Find all spells with pattern
+esp find-record --search "Fire" --type spell --data-folder "C:\Skyrim\Data" --all-plugins --json
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": [
+    {
+      "pluginName": "Skyrim.esm",
+      "editorId": "IronSword",
+      "formKey": "Skyrim.esm:0x00012EB7",
+      "recordType": "Weapon",
+      "name": "Iron Sword"
+    }
+  ]
+}
+```
+
+---
+
+### batch-override
+
+Create override patches for multiple records at once.
+
+```bash
+esp batch-override <source> --output <output> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `source` | Path to the source plugin |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--output`, `-o` | Name of the output patch plugin (required) |
+| `--type` | Record type to filter |
+| `--search` | Search pattern for EditorIDs |
+| `--editor-ids` | Comma-separated list of EditorIDs |
+| `--data-folder` | Data folder path |
+
+**Examples:**
+```bash
+# Override all spells matching pattern
+esp batch-override "MyMod.esp" -o "Spells_Patch.esp" --search "Fire*" --type spell
+
+# Override specific weapons
+esp batch-override "Skyrim.esm" -o "Weapons_Patch.esp" --editor-ids "IronSword,SteelSword,Dagger" --type weapon
+
+# Override all globals
+esp batch-override "MyMod.esp" -o "Globals_Patch.esp" --type global
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": {
+    "recordsModified": 3,
+    "modifiedRecords": ["IronSword", "SteelSword", "Dagger"],
+    "patchPath": "C:\\Skyrim\\Data\\Weapons_Patch.esp"
+  }
+}
+```
+
+---
+
+### compare-record
+
+Compare two versions of the same record.
+
+```bash
+esp compare-record <plugin1> <plugin2> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `plugin1` | Path to first plugin |
+| `plugin2` | Path to second plugin |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--editor-id` | EditorID of the record to compare |
+| `--form-id` | FormID of the record to compare |
+| `--type` | Record type (required with --editor-id) |
+
+**Examples:**
+```bash
+# Compare spell between original and patch
+esp compare-record "MyMod.esp" "MyMod_Patch.esp" --editor-id "MySpell" --type spell
+
+# Compare by FormID
+esp compare-record "Skyrim.esm" "Unofficial Patch.esp" --form-id "Skyrim.esm:0x00012EB7"
+
+# JSON output for AI analysis
+esp compare-record "Original.esp" "Modified.esp" --editor-id "IronSword" --type weapon --json
+```
+
+**Console Output:**
+```
+Comparing: MySpell (MyMod.esp:0x000800)
+Plugin 1: MyMod.esp
+Plugin 2: MyMod_Patch.esp
+
+Found 2 difference(s):
+
+Field: BaseCost
+  Original:  50
+  Modified:  25
+
+Field: TargetType
+  Original:  Self
+  Modified:  Touch
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": {
+    "original": {
+      "editorId": "MySpell",
+      "formKey": "MyMod.esp:0x000800",
+      "properties": { "baseCost": 50, "targetType": "Self" }
+    },
+    "modified": {
+      "editorId": "MySpell",
+      "formKey": "MyMod.esp:0x000800",
+      "properties": { "baseCost": 25, "targetType": "Touch" }
+    },
+    "differences": {
+      "BaseCost": {
+        "field": "BaseCost",
+        "originalValue": 50,
+        "modifiedValue": 25
+      }
+    }
+  }
+}
+```
+
+---
+
+### conflicts
+
+Detect load order conflicts for a record or plugin.
+
+```bash
+esp conflicts <data-folder> [options]
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `data-folder` | Path to Skyrim Data folder |
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--plugin` | Check conflicts for this plugin |
+| `--editor-id` | Check conflicts for this EditorID |
+| `--form-id` | Check conflicts for this FormID |
+| `--type` | Record type (required with --editor-id) |
+
+**How it works:**
+1. Scans all plugins in load order (.esm → .esp → .esl)
+2. Identifies which plugins modify the target record
+3. Reports load order positions
+4. Identifies the "winner" (last in load order)
+
+**Examples:**
+```bash
+# Check conflicts for specific weapon
+esp conflicts "C:\Skyrim\Data" --editor-id "IronSword" --type weapon
+
+# Check conflicts by FormID
+esp conflicts "C:\Skyrim\Data" --form-id "Skyrim.esm:0x00012EB7"
+
+# Check all conflicts for a plugin
+esp conflicts "C:\Skyrim\Data" --plugin "MyMod.esp" --json
+```
+
+**Console Output:**
+```
+Conflict Report:
+EditorID: IronSword
+FormKey: Skyrim.esm:0x00012EB7
+
+Found 3 plugin(s) modifying this record:
+
+[000] Skyrim.esm
+[042] WeaponBalance.esp
+[087] MyWeaponTweaks.esp [WINNER]
+
+Winning override: MyWeaponTweaks.esp
+```
+
+**JSON Output:**
+```json
+{
+  "success": true,
+  "result": {
+    "formKey": "Skyrim.esm:0x00012EB7",
+    "editorId": "IronSword",
+    "conflicts": [
+      { "pluginName": "Skyrim.esm", "loadOrder": 0, "isWinner": false },
+      { "pluginName": "WeaponBalance.esp", "loadOrder": 42, "isWinner": false },
+      { "pluginName": "MyWeaponTweaks.esp", "loadOrder": 87, "isWinner": true }
+    ],
+    "winningPlugin": "MyWeaponTweaks.esp"
+  }
+}
+```
+
+---
+
+## Workflow Examples
+
+### Creating an Override Patch
+
+Common workflow for modifying an existing record:
+
+```bash
+# 1. View the original record
+esp view-record "OriginalMod.esp" --editor-id "MySpell" --type spell
+
+# 2. Create an override patch
+esp create-override "OriginalMod.esp" -o "MyTweaks.esp" --editor-id "MySpell" --type spell
+
+# 3. Verify the override was created
+esp view-record "MyTweaks.esp" --editor-id "MySpell" --type spell
+
+# 4. Compare to see they match
+esp compare-record "OriginalMod.esp" "MyTweaks.esp" --editor-id "MySpell" --type spell
+```
+
+### Batch Patching Multiple Records
+
+```bash
+# Find all fire spells
+esp find-record --search "Fire" --type spell --plugin "Skyrim.esm"
+
+# Create overrides for all matching spells
+esp batch-override "Skyrim.esm" -o "FireSpells_Patch.esp" --search "Fire*" --type spell
+
+# Check for conflicts
+esp conflicts "C:\Skyrim\Data" --plugin "FireSpells_Patch.esp"
+```
+
+### Conflict Resolution
+
+```bash
+# Find which plugins modify a record
+esp conflicts "C:\Skyrim\Data" --editor-id "IronSword" --type weapon
+
+# Compare the winning version vs original
+esp compare-record "Skyrim.esm" "WinningMod.esp" --editor-id "IronSword" --type weapon
+
+# Create your own override to win
+esp create-override "Skyrim.esm" -o "MyFinalTweak.esp" --editor-id "IronSword" --type weapon
+```
