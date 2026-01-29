@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-01-29
+
+### Fixed
+
+- **`esp find-record` wildcard pattern bug** - The `--search "*"` parameter now correctly matches all records of the specified type
+    - **Bug:** Wildcard pattern was treated as literal asterisk character, returning empty results even when records existed
+    - **Impact:** Commands like `esp find-record --type spell --search "*"` would return `[]` despite `esp info` showing "Spells: 2"
+    - **Fix:** Added wildcard handling - `*` now matches all records of filtered type while preserving substring search for other patterns
+    - **Testing:** Verified with test plugin containing 2 spells - wildcard now returns both, partial search still works correctly
+
 ## [1.7.0] - 2026-01-29
 
 ### Added
