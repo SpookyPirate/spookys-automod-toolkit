@@ -521,7 +521,7 @@ esp generate-seq "Mod.esp" --output "./"
 esp merge "Source.esp" "Target.esp" --output "Merged.esp"
 esp list-masters "Mod.esp"
 
-# Record Viewing & Override System (v1.7.0)
+# Record Viewing & Override System
 esp view-record "Mod.esp" --editor-id "RecordID" --type spell --json
 esp view-record "Mod.esp" --form-id "000802:Mod.esp" --json
 esp create-override "Source.esp" -o "Patch.esp" --editor-id "RecordID" --type weapon

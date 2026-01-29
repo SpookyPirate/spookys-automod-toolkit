@@ -154,17 +154,36 @@ MyPlugin/
 
 ### basic Template
 Minimal plugin with:
-- SKSE plugin info
+- Modern C++20 plugin metadata (`.RuntimeCompatibility()`)
+- Precompiled headers (PCH) for fast builds
+- Comprehensive event handler examples (OnHit, OnEquip)
+- Safe NiPointer and Actor casting patterns
+- Correct form lookup methods (EditorID vs FormID)
 - Logging setup
-- OnInit hook
+- Message handler for game events
 
+**Modern API Features:**
 ```cpp
-extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse) {
-    SKSE::Init(a_skse);
-    // Your code here
-    return true;
-}
+// Modern plugin version declaration
+extern "C" __declspec(dllexport) constinit SKSE::PluginVersionData SKSEPlugin_Version = [] {
+    SKSE::PluginVersionData data{};
+    data.RuntimeCompatibility(SKSE::RuntimeCompatibility::Independent);
+    return data;
+}();
+
+// Safe NiPointer handling
+auto target = event->target.get();  // Get raw pointer
+auto actor = target->As<RE::Actor>();  // Safe cast
+
+// Correct form lookup
+auto form = RE::TESForm::LookupByEditorID("MyForm"sv);  // By EditorID
+auto form = RE::TESForm::LookupByID(0x00012EB7);  // By FormID
 ```
+
+**Build Options:**
+- VCPKG (automatic dependency management)
+- Manual vendor/ folder (no VCPKG required)
+- Windows CMD build script included (`build.bat`)
 
 ### papyrus-native Template
 Includes everything in `basic` plus:
