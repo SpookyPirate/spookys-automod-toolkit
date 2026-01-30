@@ -394,6 +394,9 @@ public class ArchiveService
             return Result<ArchiveEditResult>.Fail("No files specified to add");
         }
 
+        // Convert to absolute path to avoid BSArch creating in temp directory
+        archivePath = Path.GetFullPath(archivePath);
+
         string? tempDir = null;
         try
         {
@@ -486,6 +489,9 @@ public class ArchiveService
                     suggestions: new List<string> { "Check that source files exist and are accessible" });
             }
 
+            // Delete original archive before repacking (BSArch cannot overwrite)
+            File.Delete(archivePath);
+
             // Repack archive
             var options = new ArchiveCreateOptions
             {
@@ -554,6 +560,9 @@ public class ArchiveService
                 });
         }
 
+        // Convert to absolute path to avoid BSArch creating in temp directory
+        archivePath = Path.GetFullPath(archivePath);
+
         string? tempDir = null;
         try
         {
@@ -596,6 +605,9 @@ public class ArchiveService
                         "Use 'archive list' to see available files"
                     });
             }
+
+            // Delete original archive before repacking (BSArch cannot overwrite)
+            File.Delete(archivePath);
 
             // Repack archive
             var options = new ArchiveCreateOptions
@@ -662,6 +674,9 @@ public class ArchiveService
             return Result<ArchiveEditResult>.Fail($"Source directory not found: {sourceDir}");
         }
 
+        // Convert to absolute path to avoid BSArch creating in temp directory
+        archivePath = Path.GetFullPath(archivePath);
+
         string? tempDir = null;
         try
         {
@@ -722,6 +737,9 @@ public class ArchiveService
                         "Adjust the filter pattern if needed"
                     });
             }
+
+            // Delete original archive before repacking (BSArch cannot overwrite)
+            File.Delete(archivePath);
 
             // Repack archive
             var options = new ArchiveCreateOptions
