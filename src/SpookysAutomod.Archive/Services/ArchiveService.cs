@@ -222,7 +222,7 @@ public class ArchiveService
                 IsCompressed = isCompressed
             });
 
-            if (limit.HasValue && entries.Count >= limit.Value)
+            if (limit.HasValue && limit.Value > 0 && entries.Count >= limit.Value)
                 break;
         }
 
@@ -277,7 +277,7 @@ public class ArchiveService
                 IsCompressed = true // BA2 files are typically compressed
             });
 
-            if (limit.HasValue && entries.Count >= limit.Value)
+            if (limit.HasValue && limit.Value > 0 && entries.Count >= limit.Value)
                 break;
         }
 
@@ -899,6 +899,10 @@ public class ArchiveService
         // Default output path: overwrite original
         outputPath ??= archivePath;
 
+        // Convert to absolute path to avoid BSArch creating in temp directory
+        outputPath = Path.GetFullPath(outputPath);
+        archivePath = Path.GetFullPath(archivePath);
+
         string? tempDir = null;
         string? tempOutput = null;
 
@@ -1114,6 +1118,9 @@ public class ArchiveService
             }
         }
 
+        // Convert to absolute path to avoid BSArch creating in temp directory
+        outputPath = Path.GetFullPath(outputPath);
+
         string? mergeDir = null;
         var conflicts = new List<string>();
         var filesPerArchive = new Dictionary<string, int>();
@@ -1131,6 +1138,7 @@ public class ArchiveService
             {
                 var archiveName = Path.GetFileName(archive);
                 var tempExtractDir = Path.Combine(Path.GetTempPath(), $"archive-merge-extract-{Guid.NewGuid()}");
+                Directory.CreateDirectory(tempExtractDir);
 
                 try
                 {
