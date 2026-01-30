@@ -26,6 +26,12 @@ public static class ArchiveCommands
         archiveCommand.AddCommand(CreateAddFilesCommand());
         archiveCommand.AddCommand(CreateRemoveFilesCommand());
         archiveCommand.AddCommand(CreateReplaceFilesCommand());
+        archiveCommand.AddCommand(CreateUpdateFileCommand());
+        archiveCommand.AddCommand(CreateExtractFileCommand());
+        archiveCommand.AddCommand(CreateMergeCommand());
+        archiveCommand.AddCommand(CreateValidateCommand());
+        archiveCommand.AddCommand(CreateOptimizeCommand());
+        archiveCommand.AddCommand(CreateDiffCommand());
 
         return archiveCommand;
     }
@@ -364,6 +370,9 @@ public static class ArchiveCommands
         var filesOption = new Option<string[]>(
             "--files",
             description: "Files to add to the archive") { IsRequired = true, AllowMultipleArgumentsPerToken = true };
+        var baseDirOption = new Option<string?>(
+            "--base-dir",
+            description: "Base directory for calculating relative paths (auto-detected if not specified)");
         var preserveOption = new Option<bool>(
             "--preserve-compression",
             getDefaultValue: () => true,
@@ -373,15 +382,16 @@ public static class ArchiveCommands
         {
             archiveArg,
             filesOption,
+            baseDirOption,
             preserveOption
         };
 
-        cmd.SetHandler(async (archive, files, preserve, json, verbose) =>
+        cmd.SetHandler(async (archive, files, baseDir, preserve, json, verbose) =>
         {
             var logger = CreateLogger(json, verbose);
             var service = new ArchiveService(logger);
 
-            var result = await service.AddFilesAsync(archive, files.ToList(), preserve);
+            var result = await service.AddFilesAsync(archive, files.ToList(), baseDir, preserve);
 
             if (json)
             {
@@ -426,7 +436,7 @@ public static class ArchiveCommands
                 }
                 Environment.ExitCode = 1;
             }
-        }, archiveArg, filesOption, preserveOption, _jsonOption, _verboseOption);
+        }, archiveArg, filesOption, baseDirOption, preserveOption, _jsonOption, _verboseOption);
 
         return cmd;
     }
@@ -570,6 +580,496 @@ public static class ArchiveCommands
                 Environment.ExitCode = 1;
             }
         }, archiveArg, sourceOption, filterOption, preserveOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateDiffCommand()
+    {
+        var archive1Arg = new Argument<string>("archive1", "First archive to compare");
+        var archive2Arg = new Argument<string>("archive2", "Second archive to compare");
+
+        var cmd = new Command("diff", "Compare two archive versions")
+        {
+            archive1Arg,
+            archive2Arg
+        };
+
+        cmd.SetHandler((archive1, archive2, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = service.DiffArchives(archive1, archive2);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            archive1 = result.Value!.Archive1,
+                            archive2 = result.Value.Archive2,
+                            filesAdded = result.Value.FilesAdded,
+                            filesRemoved = result.Value.FilesRemoved,
+                            filesModified = result.Value.FilesModified,
+                            filesUnchanged = result.Value.FilesUnchanged.Count,
+                            totalFiles1 = result.Value.TotalFiles1,
+                            totalFiles2 = result.Value.TotalFiles2
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                var diff = result.Value!;
+                Console.WriteLine($"Comparing: {diff.Archive1} vs {diff.Archive2}");
+                Console.WriteLine();
+
+                if (diff.FilesAdded.Count > 0)
+                {
+                    Console.WriteLine($"Added ({diff.FilesAdded.Count}):");
+                    foreach (var file in diff.FilesAdded.Take(10))
+                        Console.WriteLine($"  + {file}");
+                    if (diff.FilesAdded.Count > 10)
+                        Console.WriteLine($"  ... and {diff.FilesAdded.Count - 10} more");
+                    Console.WriteLine();
+                }
+
+                if (diff.FilesRemoved.Count > 0)
+                {
+                    Console.WriteLine($"Removed ({diff.FilesRemoved.Count}):");
+                    foreach (var file in diff.FilesRemoved.Take(10))
+                        Console.WriteLine($"  - {file}");
+                    if (diff.FilesRemoved.Count > 10)
+                        Console.WriteLine($"  ... and {diff.FilesRemoved.Count - 10} more");
+                    Console.WriteLine();
+                }
+
+                if (diff.FilesModified.Count > 0)
+                {
+                    Console.WriteLine($"Modified ({diff.FilesModified.Count}):");
+                    foreach (var file in diff.FilesModified.Take(10))
+                        Console.WriteLine($"  * {file}");
+                    if (diff.FilesModified.Count > 10)
+                        Console.WriteLine($"  ... and {diff.FilesModified.Count - 10} more");
+                    Console.WriteLine();
+                }
+
+                Console.WriteLine($"Unchanged: {diff.FilesUnchanged.Count}");
+                Console.WriteLine();
+                Console.WriteLine($"Summary:");
+                Console.WriteLine($"  {diff.Archive1}: {diff.TotalFiles1} files");
+                Console.WriteLine($"  {diff.Archive2}: {diff.TotalFiles2} files");
+                Console.WriteLine($"  Net change: {diff.TotalFiles2 - diff.TotalFiles1:+#;-#;0} files");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                Environment.ExitCode = 1;
+            }
+        }, archive1Arg, archive2Arg, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateOptimizeCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+        var outputOption = new Option<string?>(
+            "--output",
+            description: "Output path (defaults to overwriting original)");
+        var compressOption = new Option<bool>(
+            "--compress",
+            getDefaultValue: () => true,
+            description: "Enable compression");
+
+        var cmd = new Command("optimize", "Optimize archive by repacking with compression")
+        {
+            archiveArg,
+            outputOption,
+            compressOption
+        };
+
+        cmd.SetHandler(async (archive, output, compress, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var options = new ArchiveCreateOptions { Compress = compress };
+            var result = await service.OptimizeAsync(archive, output, options);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            outputPath = result.Value!.OutputPath,
+                            originalSize = result.Value.OriginalSize,
+                            optimizedSize = result.Value.OptimizedSize,
+                            savings = result.Value.Savings,
+                            savingsPercent = result.Value.SavingsPercent,
+                            fileCount = result.Value.FileCount
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                var opt = result.Value!;
+                Console.WriteLine($"Optimized: {opt.OutputPath}");
+                Console.WriteLine($"Original size: {FormatSize(opt.OriginalSize)}");
+                Console.WriteLine($"Optimized size: {FormatSize(opt.OptimizedSize)}");
+
+                if (opt.Savings > 0)
+                {
+                    Console.WriteLine($"Savings: {FormatSize(opt.Savings)} ({opt.SavingsPercent:F1}%)");
+                }
+                else if (opt.Savings < 0)
+                {
+                    Console.WriteLine($"Size increased: {FormatSize(-opt.Savings)} ({-opt.SavingsPercent:F1}%)");
+                }
+                else
+                {
+                    Console.WriteLine("Size unchanged");
+                }
+
+                Console.WriteLine($"Files: {opt.FileCount}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, outputOption, compressOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateValidateCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+
+        var cmd = new Command("validate", "Check archive integrity")
+        {
+            archiveArg
+        };
+
+        cmd.SetHandler((archive, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = service.Validate(archive);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            isValid = result.Value!.IsValid,
+                            fileCount = result.Value.FileCount,
+                            archiveSize = result.Value.ArchiveSize,
+                            archiveType = result.Value.ArchiveType,
+                            issues = result.Value.Issues,
+                            warnings = result.Value.Warnings
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                var validation = result.Value!;
+
+                if (validation.IsValid)
+                {
+                    Console.WriteLine($"✓ Archive is valid");
+                    Console.WriteLine($"  Type: {validation.ArchiveType}");
+                    Console.WriteLine($"  Files: {validation.FileCount}");
+                    Console.WriteLine($"  Size: {FormatSize(validation.ArchiveSize)}");
+                }
+                else
+                {
+                    Console.WriteLine($"✗ Archive has issues");
+                }
+
+                if (validation.Issues.Count > 0)
+                {
+                    Console.WriteLine($"\nIssues ({validation.Issues.Count}):");
+                    foreach (var issue in validation.Issues)
+                        Console.WriteLine($"  ✗ {issue}");
+                }
+
+                if (validation.Warnings.Count > 0)
+                {
+                    Console.WriteLine($"\nWarnings ({validation.Warnings.Count}):");
+                    foreach (var warning in validation.Warnings.Take(10))
+                        Console.WriteLine($"  ⚠ {warning}");
+                    if (validation.Warnings.Count > 10)
+                        Console.WriteLine($"  ... and {validation.Warnings.Count - 10} more");
+                }
+
+                Environment.ExitCode = validation.IsValid ? 0 : 1;
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateMergeCommand()
+    {
+        var archivesArg = new Argument<string[]>("archives", "Archives to merge (later ones overwrite earlier)") { Arity = ArgumentArity.OneOrMore };
+        var outputOption = new Option<string>(
+            "--output",
+            description: "Output merged archive path") { IsRequired = true };
+        var compressOption = new Option<bool>(
+            "--compress",
+            getDefaultValue: () => true,
+            description: "Compress merged archive");
+
+        var cmd = new Command("merge", "Merge multiple archives into one")
+        {
+            archivesArg,
+            outputOption,
+            compressOption
+        };
+
+        cmd.SetHandler(async (archives, output, compress, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var options = new ArchiveCreateOptions { Compress = compress };
+            var result = await service.MergeArchivesAsync(archives.ToList(), output, options);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            outputPath = result.Value!.OutputPath,
+                            archivesMerged = result.Value.ArchivesMerged,
+                            totalFiles = result.Value.TotalFiles,
+                            conflicts = result.Value.Conflicts,
+                            filesPerArchive = result.Value.FilesPerArchive
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Merged {result.Value!.ArchivesMerged} archives");
+                Console.WriteLine($"Output: {result.Value.OutputPath}");
+                Console.WriteLine($"Total files: {result.Value.TotalFiles}");
+
+                if (result.Value.Conflicts.Count > 0)
+                {
+                    Console.WriteLine($"\nConflicts resolved ({result.Value.Conflicts.Count}):");
+                    foreach (var conflict in result.Value.Conflicts.Take(10))
+                        Console.WriteLine($"  - {conflict}");
+                    if (result.Value.Conflicts.Count > 10)
+                        Console.WriteLine($"  ... and {result.Value.Conflicts.Count - 10} more");
+                }
+
+                Console.WriteLine("\nFiles per archive:");
+                foreach (var kvp in result.Value.FilesPerArchive)
+                    Console.WriteLine($"  {kvp.Key}: {kvp.Value} files");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archivesArg, outputOption, compressOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateExtractFileCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+        var fileOption = new Option<string>(
+            "--file",
+            description: "File path in archive to extract (e.g., scripts/MyScript.pex)") { IsRequired = true };
+        var outputOption = new Option<string>(
+            "--output",
+            description: "Output file path") { IsRequired = true };
+
+        var cmd = new Command("extract-file", "Extract a single file from an archive")
+        {
+            archiveArg,
+            fileOption,
+            outputOption
+        };
+
+        cmd.SetHandler(async (archive, file, output, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = await service.ExtractFileAsync(archive, file, output);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            file = file,
+                            outputPath = result.Value
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Extracted: {file}");
+                Console.WriteLine($"To: {result.Value}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, fileOption, outputOption, _jsonOption, _verboseOption);
+
+        return cmd;
+    }
+
+    private static Command CreateUpdateFileCommand()
+    {
+        var archiveArg = new Argument<string>("archive", "Path to the BSA/BA2 archive");
+        var fileOption = new Option<string>(
+            "--file",
+            description: "Target file path in archive (e.g., scripts/MyScript.pex)") { IsRequired = true };
+        var sourceOption = new Option<string>(
+            "--source",
+            description: "Source file to update with") { IsRequired = true };
+        var preserveOption = new Option<bool>(
+            "--preserve-compression",
+            getDefaultValue: () => true,
+            description: "Preserve archive compression settings");
+
+        var cmd = new Command("update-file", "Update a single file in an existing archive")
+        {
+            archiveArg,
+            fileOption,
+            sourceOption,
+            preserveOption
+        };
+
+        cmd.SetHandler(async (archive, file, source, preserve, json, verbose) =>
+        {
+            var logger = CreateLogger(json, verbose);
+            var service = new ArchiveService(logger);
+
+            var result = await service.UpdateFileAsync(archive, file, source, preserve);
+
+            if (json)
+            {
+                if (result.Success)
+                {
+                    Console.WriteLine(new
+                    {
+                        success = true,
+                        result = new
+                        {
+                            fileUpdated = file,
+                            totalFiles = result.Value!.TotalFiles,
+                            errors = result.Value.Errors
+                        }
+                    }.ToJson());
+                }
+                else
+                {
+                    Console.WriteLine(Result.Fail(result.Error!, suggestions: result.Suggestions).ToJson(true));
+                }
+            }
+            else if (result.Success)
+            {
+                Console.WriteLine($"Updated file: {file}");
+                Console.WriteLine($"Total files in archive: {result.Value!.TotalFiles}");
+
+                if (result.Value.Errors.Count > 0)
+                {
+                    Console.WriteLine("\nErrors:");
+                    foreach (var err in result.Value.Errors)
+                        Console.WriteLine($"  - {err}");
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine($"Error: {result.Error}");
+                if (result.Suggestions?.Count > 0)
+                {
+                    Console.Error.WriteLine("\nSuggestions:");
+                    foreach (var s in result.Suggestions)
+                        Console.Error.WriteLine($"  - {s}");
+                }
+                Environment.ExitCode = 1;
+            }
+        }, archiveArg, fileOption, sourceOption, preserveOption, _jsonOption, _verboseOption);
 
         return cmd;
     }

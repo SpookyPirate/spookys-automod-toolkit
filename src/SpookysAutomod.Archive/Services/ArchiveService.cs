@@ -381,6 +381,7 @@ public class ArchiveService
     public async Task<Result<ArchiveEditResult>> AddFilesAsync(
         string archivePath,
         List<string> filesToAdd,
+        string? baseDirectory = null,
         bool preserveCompression = true)
     {
         if (!File.Exists(archivePath))
@@ -419,6 +420,14 @@ public class ArchiveService
                 return Result<ArchiveEditResult>.Fail($"Failed to extract archive: {extractResult.Error}");
             }
 
+            // Auto-detect base directory if not provided
+            if (string.IsNullOrEmpty(baseDirectory) && filesToAdd.Count > 0)
+            {
+                // Find common parent directory
+                baseDirectory = FindCommonParentDirectory(filesToAdd);
+                _logger.Debug($"Auto-detected base directory: {baseDirectory}");
+            }
+
             // Copy new files to temp directory
             var filesAdded = 0;
             var errors = new List<string>();
@@ -433,9 +442,25 @@ public class ArchiveService
 
                 try
                 {
-                    // Determine destination path (relative to temp dir)
-                    var fileName = Path.GetFileName(sourceFile);
-                    var destPath = Path.Combine(tempDir, fileName);
+                    // Calculate relative path from base directory
+                    string relativePath;
+                    if (!string.IsNullOrEmpty(baseDirectory))
+                    {
+                        relativePath = Path.GetRelativePath(baseDirectory, sourceFile);
+
+                        // If relative path goes up (..), just use filename
+                        if (relativePath.StartsWith(".."))
+                        {
+                            relativePath = Path.GetFileName(sourceFile);
+                        }
+                    }
+                    else
+                    {
+                        // No base directory - use just filename
+                        relativePath = Path.GetFileName(sourceFile);
+                    }
+
+                    var destPath = Path.Combine(tempDir, relativePath);
 
                     // Create directory if needed
                     var destDir = Path.GetDirectoryName(destPath);
@@ -446,7 +471,7 @@ public class ArchiveService
 
                     File.Copy(sourceFile, destPath, overwrite: true);
                     filesAdded++;
-                    _logger.Debug($"Added file: {fileName}");
+                    _logger.Debug($"Added file: {relativePath}");
                 }
                 catch (Exception ex)
                 {
@@ -744,6 +769,639 @@ public class ArchiveService
     }
 
     /// <summary>
+    /// Compare two archive versions and show differences.
+    /// </summary>
+    public Result<ArchiveDiffResult> DiffArchives(string archive1Path, string archive2Path)
+    {
+        if (!File.Exists(archive1Path))
+        {
+            return Result<ArchiveDiffResult>.Fail($"Archive 1 not found: {archive1Path}");
+        }
+
+        if (!File.Exists(archive2Path))
+        {
+            return Result<ArchiveDiffResult>.Fail($"Archive 2 not found: {archive2Path}");
+        }
+
+        try
+        {
+            // List files from both archives
+            var list1Result = ListFiles(archive1Path, limit: 0);
+            if (!list1Result.Success)
+            {
+                return Result<ArchiveDiffResult>.Fail($"Failed to list archive 1: {list1Result.Error}");
+            }
+
+            var list2Result = ListFiles(archive2Path, limit: 0);
+            if (!list2Result.Success)
+            {
+                return Result<ArchiveDiffResult>.Fail($"Failed to list archive 2: {list2Result.Error}");
+            }
+
+            var files1 = list1Result.Value!.ToDictionary(f => f.Path, f => f);
+            var files2 = list2Result.Value!.ToDictionary(f => f.Path, f => f);
+
+            // Find differences
+            var added = new List<string>();
+            var removed = new List<string>();
+            var modified = new List<string>();
+            var unchanged = new List<string>();
+
+            // Files in archive 2 but not in archive 1 = added
+            foreach (var path in files2.Keys)
+            {
+                if (!files1.ContainsKey(path))
+                {
+                    added.Add(path);
+                }
+            }
+
+            // Files in archive 1 but not in archive 2 = removed
+            foreach (var path in files1.Keys)
+            {
+                if (!files2.ContainsKey(path))
+                {
+                    removed.Add(path);
+                }
+            }
+
+            // Files in both - check if modified
+            foreach (var path in files1.Keys)
+            {
+                if (files2.ContainsKey(path))
+                {
+                    var file1 = files1[path];
+                    var file2 = files2[path];
+
+                    // Compare sizes to detect modifications
+                    if (file1.Size != file2.Size)
+                    {
+                        modified.Add(path);
+                    }
+                    else
+                    {
+                        unchanged.Add(path);
+                    }
+                }
+            }
+
+            return Result<ArchiveDiffResult>.Ok(new ArchiveDiffResult
+            {
+                Archive1 = Path.GetFileName(archive1Path),
+                Archive2 = Path.GetFileName(archive2Path),
+                FilesAdded = added,
+                FilesRemoved = removed,
+                FilesModified = modified,
+                FilesUnchanged = unchanged,
+                TotalFiles1 = files1.Count,
+                TotalFiles2 = files2.Count
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ArchiveDiffResult>.Fail(
+                $"Failed to compare archives: {ex.Message}",
+                ex.StackTrace);
+        }
+    }
+
+    /// <summary>
+    /// Optimize an archive by repacking with compression.
+    /// </summary>
+    public async Task<Result<ArchiveOptimizeResult>> OptimizeAsync(
+        string archivePath,
+        string? outputPath = null,
+        ArchiveCreateOptions? options = null)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<ArchiveOptimizeResult>.Fail($"Archive not found: {archivePath}");
+        }
+
+        // Default output path: overwrite original
+        outputPath ??= archivePath;
+
+        string? tempDir = null;
+        string? tempOutput = null;
+
+        try
+        {
+            // Get original info
+            var infoResult = GetInfo(archivePath);
+            if (!infoResult.Success)
+            {
+                return Result<ArchiveOptimizeResult>.Fail($"Failed to read archive info: {infoResult.Error}");
+            }
+
+            var originalInfo = infoResult.Value!;
+            var originalSize = new FileInfo(archivePath).Length;
+
+            // Extract to temp
+            tempDir = Path.Combine(Path.GetTempPath(), $"archive-optimize-{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+
+            _logger.Debug($"Extracting archive to: {tempDir}");
+
+            var extractResult = await ExtractAsync(archivePath, tempDir);
+            if (!extractResult.Success)
+            {
+                return Result<ArchiveOptimizeResult>.Fail($"Failed to extract archive: {extractResult.Error}");
+            }
+
+            // If overwriting, create temp output first
+            if (outputPath.Equals(archivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                tempOutput = Path.Combine(Path.GetTempPath(), $"archive-optimize-output-{Guid.NewGuid()}.bsa");
+            }
+            else
+            {
+                tempOutput = outputPath;
+            }
+
+            // Repack with compression
+            options ??= new ArchiveCreateOptions { Compress = true };
+
+            _logger.Debug($"Repacking archive with compression: {options.Compress}");
+
+            var createResult = await CreateAsync(tempDir, tempOutput, options);
+            if (!createResult.Success)
+            {
+                return Result<ArchiveOptimizeResult>.Fail($"Failed to repack archive: {createResult.Error}");
+            }
+
+            // If we used temp output, replace original
+            if (!tempOutput.Equals(outputPath, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(archivePath);
+                File.Move(tempOutput, outputPath);
+            }
+
+            var newSize = new FileInfo(outputPath).Length;
+            var savings = originalSize - newSize;
+            var savingsPercent = originalSize > 0 ? (double)savings / originalSize * 100 : 0;
+
+            return Result<ArchiveOptimizeResult>.Ok(new ArchiveOptimizeResult
+            {
+                OutputPath = outputPath,
+                OriginalSize = originalSize,
+                OptimizedSize = newSize,
+                Savings = savings,
+                SavingsPercent = savingsPercent,
+                FileCount = originalInfo.FileCount
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ArchiveOptimizeResult>.Fail(
+                $"Failed to optimize archive: {ex.Message}",
+                ex.StackTrace);
+        }
+        finally
+        {
+            // Cleanup
+            if (tempDir != null && Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp directory: {ex.Message}");
+                }
+            }
+
+            if (tempOutput != null && File.Exists(tempOutput) && !tempOutput.Equals(outputPath, StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    File.Delete(tempOutput);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp output: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Validate archive integrity.
+    /// Checks if archive is readable and files can be listed.
+    /// </summary>
+    public Result<ArchiveValidationResult> Validate(string archivePath)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<ArchiveValidationResult>.Fail($"Archive not found: {archivePath}");
+        }
+
+        var issues = new List<string>();
+        var warnings = new List<string>();
+
+        try
+        {
+            // Check if we can get basic info
+            var infoResult = GetInfo(archivePath);
+            if (!infoResult.Success)
+            {
+                issues.Add($"Failed to read archive header: {infoResult.Error}");
+                return Result<ArchiveValidationResult>.Ok(new ArchiveValidationResult
+                {
+                    IsValid = false,
+                    Issues = issues,
+                    Warnings = warnings
+                });
+            }
+
+            var info = infoResult.Value!;
+
+            // Check if we can list files
+            var listResult = ListFiles(archivePath, limit: 0);
+            if (!listResult.Success)
+            {
+                issues.Add($"Failed to list archive files: {listResult.Error}");
+                return Result<ArchiveValidationResult>.Ok(new ArchiveValidationResult
+                {
+                    IsValid = false,
+                    FileCount = info.FileCount,
+                    ArchiveSize = info.FileSize,
+                    Issues = issues,
+                    Warnings = warnings
+                });
+            }
+
+            var files = listResult.Value!;
+
+            // Check if file count matches
+            if (files.Count != info.FileCount)
+            {
+                warnings.Add($"File count mismatch: header says {info.FileCount}, but found {files.Count}");
+            }
+
+            // Check for suspicious file sizes
+            foreach (var file in files)
+            {
+                if (file.Size == 0)
+                {
+                    warnings.Add($"Zero-byte file: {file.Path}");
+                }
+            }
+
+            // Archive is valid if we could read it
+            var isValid = issues.Count == 0;
+
+            return Result<ArchiveValidationResult>.Ok(new ArchiveValidationResult
+            {
+                IsValid = isValid,
+                FileCount = files.Count,
+                ArchiveSize = info.FileSize,
+                ArchiveType = info.Type,
+                Issues = issues,
+                Warnings = warnings
+            });
+        }
+        catch (Exception ex)
+        {
+            issues.Add($"Validation failed: {ex.Message}");
+            return Result<ArchiveValidationResult>.Ok(new ArchiveValidationResult
+            {
+                IsValid = false,
+                Issues = issues,
+                Warnings = warnings
+            });
+        }
+    }
+
+    /// <summary>
+    /// Merge multiple archives into one.
+    /// Later archives overwrite earlier ones on conflict.
+    /// </summary>
+    public async Task<Result<ArchiveMergeResult>> MergeArchivesAsync(
+        List<string> archivePaths,
+        string outputPath,
+        ArchiveCreateOptions? options = null)
+    {
+        if (archivePaths == null || archivePaths.Count == 0)
+        {
+            return Result<ArchiveMergeResult>.Fail("No archives specified to merge");
+        }
+
+        // Verify all archives exist
+        foreach (var archive in archivePaths)
+        {
+            if (!File.Exists(archive))
+            {
+                return Result<ArchiveMergeResult>.Fail($"Archive not found: {archive}");
+            }
+        }
+
+        string? mergeDir = null;
+        var conflicts = new List<string>();
+        var filesPerArchive = new Dictionary<string, int>();
+
+        try
+        {
+            // Create merge directory
+            mergeDir = Path.Combine(Path.GetTempPath(), $"archive-merge-{Guid.NewGuid()}");
+            Directory.CreateDirectory(mergeDir);
+
+            _logger.Debug($"Merging {archivePaths.Count} archives to: {mergeDir}");
+
+            // Extract each archive and copy files (later archives overwrite earlier)
+            foreach (var archive in archivePaths)
+            {
+                var archiveName = Path.GetFileName(archive);
+                var tempExtractDir = Path.Combine(Path.GetTempPath(), $"archive-merge-extract-{Guid.NewGuid()}");
+
+                try
+                {
+                    _logger.Debug($"Extracting: {archiveName}");
+
+                    var extractResult = await ExtractAsync(archive, tempExtractDir);
+                    if (!extractResult.Success)
+                    {
+                        return Result<ArchiveMergeResult>.Fail($"Failed to extract {archiveName}: {extractResult.Error}");
+                    }
+
+                    // Copy files from extract dir to merge dir
+                    var files = Directory.GetFiles(tempExtractDir, "*", SearchOption.AllDirectories);
+                    var fileCount = 0;
+
+                    foreach (var sourceFile in files)
+                    {
+                        var relativePath = Path.GetRelativePath(tempExtractDir, sourceFile);
+                        var destFile = Path.Combine(mergeDir, relativePath);
+
+                        // Track conflicts
+                        if (File.Exists(destFile))
+                        {
+                            conflicts.Add($"{relativePath} (overwritten by {archiveName})");
+                        }
+
+                        var destDir = Path.GetDirectoryName(destFile);
+                        if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
+                        {
+                            Directory.CreateDirectory(destDir);
+                        }
+
+                        File.Copy(sourceFile, destFile, overwrite: true);
+                        fileCount++;
+                    }
+
+                    filesPerArchive[archiveName] = fileCount;
+                    _logger.Debug($"Merged {fileCount} files from {archiveName}");
+                }
+                finally
+                {
+                    // Cleanup extract directory
+                    if (Directory.Exists(tempExtractDir))
+                    {
+                        try
+                        {
+                            Directory.Delete(tempExtractDir, recursive: true);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Debug($"Failed to cleanup temp extract directory: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            // Create merged archive
+            _logger.Debug($"Creating merged archive: {outputPath}");
+
+            var createResult = await CreateAsync(mergeDir, outputPath, options);
+            if (!createResult.Success)
+            {
+                return Result<ArchiveMergeResult>.Fail($"Failed to create merged archive: {createResult.Error}");
+            }
+
+            var totalFiles = Directory.GetFiles(mergeDir, "*", SearchOption.AllDirectories).Length;
+
+            return Result<ArchiveMergeResult>.Ok(new ArchiveMergeResult
+            {
+                OutputPath = outputPath,
+                ArchivesMerged = archivePaths.Count,
+                TotalFiles = totalFiles,
+                Conflicts = conflicts,
+                FilesPerArchive = filesPerArchive
+            });
+        }
+        catch (Exception ex)
+        {
+            return Result<ArchiveMergeResult>.Fail(
+                $"Failed to merge archives: {ex.Message}",
+                ex.StackTrace);
+        }
+        finally
+        {
+            // Cleanup merge directory
+            if (mergeDir != null && Directory.Exists(mergeDir))
+            {
+                try
+                {
+                    Directory.Delete(mergeDir, recursive: true);
+                    _logger.Debug($"Cleaned up merge directory: {mergeDir}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup merge directory: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extract a single file from an archive.
+    /// </summary>
+    public async Task<Result<string>> ExtractFileAsync(
+        string archivePath,
+        string targetFile,
+        string outputPath)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<string>.Fail($"Archive not found: {archivePath}");
+        }
+
+        if (string.IsNullOrEmpty(targetFile))
+        {
+            return Result<string>.Fail("Target file path not specified");
+        }
+
+        string? tempDir = null;
+        try
+        {
+            // Extract to temp directory
+            tempDir = Path.Combine(Path.GetTempPath(), $"archive-extract-{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+
+            _logger.Debug($"Extracting archive to temp: {tempDir}");
+
+            var extractResult = await ExtractAsync(archivePath, tempDir);
+            if (!extractResult.Success)
+            {
+                return Result<string>.Fail($"Failed to extract archive: {extractResult.Error}");
+            }
+
+            // Find the target file
+            var sourceFile = Path.Combine(tempDir, targetFile);
+            if (!File.Exists(sourceFile))
+            {
+                // Try normalizing path separators
+                sourceFile = Path.Combine(tempDir, targetFile.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar));
+            }
+
+            if (!File.Exists(sourceFile))
+            {
+                return Result<string>.Fail(
+                    $"File not found in archive: {targetFile}",
+                    suggestions: new List<string>
+                    {
+                        "Use 'archive list' to see available files",
+                        "Check the file path spelling and case"
+                    });
+            }
+
+            // Copy to output location
+            var outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+            }
+
+            File.Copy(sourceFile, outputPath, overwrite: true);
+            _logger.Debug($"Extracted file to: {outputPath}");
+
+            return Result<string>.Ok(outputPath);
+        }
+        catch (Exception ex)
+        {
+            return Result<string>.Fail(
+                $"Failed to extract file: {ex.Message}",
+                ex.StackTrace);
+        }
+        finally
+        {
+            // Cleanup temp directory
+            if (tempDir != null && Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                    _logger.Debug($"Cleaned up temp directory: {tempDir}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp directory: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Update a single file in an existing archive.
+    /// Convenience wrapper around ReplaceFilesAsync for single file updates.
+    /// </summary>
+    public async Task<Result<ArchiveEditResult>> UpdateFileAsync(
+        string archivePath,
+        string targetFile,
+        string sourceFile,
+        bool preserveCompression = true)
+    {
+        if (!File.Exists(archivePath))
+        {
+            return Result<ArchiveEditResult>.Fail($"Archive not found: {archivePath}");
+        }
+
+        if (!File.Exists(sourceFile))
+        {
+            return Result<ArchiveEditResult>.Fail($"Source file not found: {sourceFile}");
+        }
+
+        if (string.IsNullOrEmpty(targetFile))
+        {
+            return Result<ArchiveEditResult>.Fail("Target file path not specified");
+        }
+
+        // Create temp directory with the single file in correct structure
+        var tempDir = Path.Combine(Path.GetTempPath(), $"archive-update-{Guid.NewGuid()}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+
+            // Copy source file to temp with target file's path
+            var destPath = Path.Combine(tempDir, targetFile);
+            var destDir = Path.GetDirectoryName(destPath);
+            if (!string.IsNullOrEmpty(destDir))
+            {
+                Directory.CreateDirectory(destDir);
+            }
+
+            File.Copy(sourceFile, destPath, overwrite: true);
+
+            // Use ReplaceFilesAsync with specific filter
+            var result = await ReplaceFilesAsync(archivePath, tempDir, targetFile, preserveCompression);
+
+            return result;
+        }
+        finally
+        {
+            // Cleanup temp directory
+            if (Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Failed to cleanup temp directory: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Find the common parent directory for a list of files.
+    /// </summary>
+    private string FindCommonParentDirectory(List<string> files)
+    {
+        if (files.Count == 0)
+            return string.Empty;
+
+        if (files.Count == 1)
+            return Path.GetDirectoryName(files[0]) ?? string.Empty;
+
+        // Get all directory paths
+        var directories = files.Select(f => Path.GetDirectoryName(Path.GetFullPath(f)) ?? string.Empty).ToList();
+
+        // Split paths into segments
+        var pathSegments = directories.Select(d => d.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)).ToList();
+
+        // Find common prefix
+        var commonSegments = new List<string>();
+        var minLength = pathSegments.Min(p => p.Length);
+
+        for (int i = 0; i < minLength; i++)
+        {
+            var segment = pathSegments[0][i];
+            if (pathSegments.All(p => p[i].Equals(segment, StringComparison.OrdinalIgnoreCase)))
+            {
+                commonSegments.Add(segment);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return string.Join(Path.DirectorySeparatorChar.ToString(), commonSegments);
+    }
+
+    /// <summary>
     /// Simple pattern matching for file filters.
     /// Supports wildcards like *.ext or folder/* patterns.
     /// </summary>
@@ -821,4 +1479,45 @@ public class ArchiveEditResult
     public int FilesModified { get; set; }
     public int TotalFiles { get; set; }
     public List<string> Errors { get; set; } = new();
+}
+
+public class ArchiveMergeResult
+{
+    public string OutputPath { get; set; } = "";
+    public int ArchivesMerged { get; set; }
+    public int TotalFiles { get; set; }
+    public List<string> Conflicts { get; set; } = new();
+    public Dictionary<string, int> FilesPerArchive { get; set; } = new();
+}
+
+public class ArchiveValidationResult
+{
+    public bool IsValid { get; set; }
+    public int FileCount { get; set; }
+    public long ArchiveSize { get; set; }
+    public string ArchiveType { get; set; } = "";
+    public List<string> Issues { get; set; } = new();
+    public List<string> Warnings { get; set; } = new();
+}
+
+public class ArchiveOptimizeResult
+{
+    public string OutputPath { get; set; } = "";
+    public long OriginalSize { get; set; }
+    public long OptimizedSize { get; set; }
+    public long Savings { get; set; }
+    public double SavingsPercent { get; set; }
+    public int FileCount { get; set; }
+}
+
+public class ArchiveDiffResult
+{
+    public string Archive1 { get; set; } = "";
+    public string Archive2 { get; set; } = "";
+    public List<string> FilesAdded { get; set; } = new();
+    public List<string> FilesRemoved { get; set; } = new();
+    public List<string> FilesModified { get; set; } = new();
+    public List<string> FilesUnchanged { get; set; } = new();
+    public int TotalFiles1 { get; set; }
+    public int TotalFiles2 { get; set; }
 }
