@@ -8,6 +8,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-01-30
+
+### Added
+
+- **Archive Editing Operations** - Comprehensive suite for modifying BSA/BA2 archives without full repackaging
+    - `archive add-files` - Add new files to existing archives with directory structure preservation
+        - `--base-dir` parameter for explicit path control
+        - Auto-detection of common parent directory
+        - Preserves folder hierarchy (e.g., meshes/mymod/weapon.nif)
+    - `archive remove-files` - Remove files by pattern from archives
+        - Filter patterns: `*.esp`, `scripts/*`, specific files
+        - Preserves remaining archive structure
+    - `archive replace-files` - Replace matching files from source directory
+        - Optional filter patterns for selective replacement
+        - Useful for script updates, texture patches
+    - `archive update-file` - Convenience wrapper for single file updates
+        - Faster than full replace-files for single operations
+    - `archive extract-file` - Extract single file without unpacking entire archive
+        - Significantly faster than full extraction for single file access
+
+- **Archive Maintenance Operations**
+    - `archive merge` - Combine multiple archives with conflict tracking
+        - Reports conflicts when files exist in multiple archives
+        - Later archives overwrite earlier ones
+        - Tracks files per source archive
+    - `archive validate` - Check archive integrity
+        - Reports file count, size, archive type
+        - Warns about mismatches or corruption
+        - Useful before distribution
+    - `archive optimize` - Repack with compression and report size savings
+        - Defragments and compresses archives
+        - Reports original vs optimized size
+        - Percentage savings calculation
+    - `archive diff` - Compare two archive versions
+        - Shows added, removed, modified, and unchanged files
+        - Useful for understanding what patches change
+
+### Fixed
+
+- **Critical archive editing bugs** - 5 major bugs preventing archive editing from working:
+    1. **BSArch overwrite bug**: BSArch cannot pack to existing files
+        - Added `File.Delete(archivePath)` before repacking in add-files, remove-files, replace-files
+    2. **Temp directory cleanup bug**: BSArch created archives in temp directory (immediately deleted)
+        - Added `Path.GetFullPath(archivePath)` to convert relative paths to absolute
+        - Affects: add-files, remove-files, replace-files, merge, optimize
+    3. **Merge extract directory bug**: Merge created temp path but didn't create directory
+        - Added `Directory.CreateDirectory(tempExtractDir)` before extraction
+    4. **Merge/Optimize output path bug**: Same temp directory issue as edit operations
+        - Added `Path.GetFullPath(outputPath)` in MergeArchivesAsync and OptimizeAsync
+    5. **ListFiles limit=0 bug**: limit=0 broke immediately instead of showing all files
+        - Changed condition to check `limit.Value > 0` before breaking
+        - Affected validate and diff operations which use limit=0 for "show all"
+
+### Changed
+
+- **Documentation comprehensively updated** for archive editing
+    - `.claude/skills/skyrim-archive/skill.md` - Full command reference and workflows
+    - `docs/llm-guide.md` - Complete Archive Operations section with examples
+    - `docs/llm-init-prompt.md` - Updated quick reference for AI assistants
+    - All version references removed to keep documentation version-agnostic
+
+### Developer Notes
+
+- Extract-modify-repack workflow pattern used for all editing operations
+- All operations support `--preserve-compression` flag (defaults to true)
+- JSON output for all operations with structured Result types
+- Temp directory cleanup in finally blocks for safety
+- ~500 lines of new code across ArchiveService and ArchiveCommands
+
+### Known Limitations
+
+- Archive editing requires BSArch tool (auto-downloads on first use)
+- Edit operations take time for large archives (extract → modify → repack)
+- BSArch only supports SSE, LE, FO4, FO76 archive formats
+
 ## [1.7.1] - 2026-01-29
 
 ### Fixed
