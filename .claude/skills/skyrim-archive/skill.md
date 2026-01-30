@@ -83,9 +83,11 @@ dotnet run --project src/SpookysAutomod.Cli -- archive add-files "<archive>" --f
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--files` | Required | Files to add to the archive |
+| `--base-dir` | Auto-detect | Base directory for calculating relative paths |
 | `--preserve-compression` | true | Keep original compression settings |
 
 **Requires:** BSArch tool installed
+**Note:** Automatically detects common parent directory to preserve folder structure
 
 ### Remove Files from Archive
 ```bash
@@ -109,6 +111,71 @@ dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "<archive>"
 | `--preserve-compression` | true | Keep original compression settings |
 
 **Requires:** BSArch tool installed
+
+### Update Single File
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive update-file "<archive>" --file "<target>" --source "<file>" [options]
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--file` | Required | Target file path in archive (e.g., `scripts/MyScript.pex`) |
+| `--source` | Required | Source file to update with |
+| `--preserve-compression` | true | Keep original compression settings |
+
+**Requires:** BSArch tool installed
+**Note:** Convenience wrapper for single file updates
+
+### Extract Single File
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive extract-file "<archive>" --file "<target>" --output "<path>"
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--file` | Required | File path in archive to extract |
+| `--output` | Required | Output file path |
+
+**Requires:** BSArch tool installed
+**Note:** Faster than full extraction for single file access
+
+### Merge Archives
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive merge <archive1> <archive2> ... --output "<file>" [options]
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output` | Required | Output merged archive path |
+| `--compress` | true | Compress merged archive |
+
+**Requires:** BSArch tool installed
+**Note:** Later archives overwrite earlier ones on conflict
+
+### Validate Archive
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive validate "<archive>"
+```
+
+**Requires:** BSArch tool installed (for info/list commands only)
+**Note:** Checks if archive is readable and reports issues/warnings
+
+### Optimize Archive
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive optimize "<archive>" [options]
+```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--output` | Original | Output path (defaults to overwriting original) |
+| `--compress` | true | Enable compression |
+
+**Requires:** BSArch tool installed
+**Note:** Repacks archive with compression, reports size savings
+
+### Compare Archives
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive diff "<archive1>" "<archive2>"
+```
+
+**Requires:** BSArch tool installed (for list commands only)
+**Note:** Shows added, removed, and modified files between versions
 
 ## Common Workflows
 
@@ -214,6 +281,46 @@ dotnet run --project src/SpookysAutomod.Cli -- archive extract "OriginalMod.bsa"
 dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "OriginalMod.bsa" \
   --source "./Patch" \
   --filter "textures/armor/*"
+```
+
+#### Quick Single File Operations
+```bash
+# Update just one script after recompiling
+dotnet run --project src/SpookysAutomod.Cli -- archive update-file "MyMod.bsa" \
+  --file "scripts/MainScript.pex" \
+  --source "./MainScript.pex"
+
+# Extract just one file for inspection
+dotnet run --project src/SpookysAutomod.Cli -- archive extract-file "MyMod.bsa" \
+  --file "scripts/MainScript.pex" \
+  --output "./MainScript.pex"
+```
+
+#### Merge Multiple Mod Archives
+```bash
+# Combine base mod + patches into single archive
+dotnet run --project src/SpookysAutomod.Cli -- archive merge \
+  "MyMod-Base.bsa" \
+  "MyMod-Patch1.bsa" \
+  "MyMod-Patch2.bsa" \
+  --output "MyMod-Complete.bsa"
+
+# Later archives overwrite earlier ones on conflict
+```
+
+#### Archive Maintenance
+```bash
+# Check archive integrity before distribution
+dotnet run --project src/SpookysAutomod.Cli -- archive validate "MyMod.bsa"
+
+# Optimize old archive with compression
+dotnet run --project src/SpookysAutomod.Cli -- archive optimize "OldMod.bsa" \
+  --output "OldMod-Optimized.bsa"
+
+# Compare two versions to see what changed
+dotnet run --project src/SpookysAutomod.Cli -- archive diff \
+  "MyMod-v1.bsa" \
+  "MyMod-v2.bsa"
 ```
 
 ### Troubleshooting Workflow

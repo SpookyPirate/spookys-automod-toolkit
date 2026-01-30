@@ -1,6 +1,5 @@
 # LLM Guide for Spooky's AutoMod Toolkit
 
-**Version:** 1.6.0
 **Purpose:** Comprehensive technical reference for workflow patterns and advanced features
 
 ---
@@ -712,6 +711,529 @@ dotnet run --project src/SpookysAutomod.Cli -- mcm validate "./MCM/config.json"
 
 ---
 
+## Archive Operations
+
+### Understanding BSA/BA2 Archives
+
+Archives (BSA for Skyrim, BA2 for Fallout 4) are compressed containers that package mod assets. Understanding archive operations is essential for:
+
+- **Mod Distribution**: Package textures, meshes, scripts into single files
+- **Mod Analysis**: Extract and inspect existing mod contents
+- **Mod Patching**: Update specific files without full repackaging
+- **Troubleshooting**: Find missing assets, check file conflicts
+
+**Critical Requirement**: BSArch tool must be installed for create/extract/edit operations. Info/list commands work without it.
+
+### Basic Archive Operations
+
+**Check Tool Status:**
+```bash
+dotnet run --project src/SpookysAutomod.Cli -- archive status --json
+```
+
+**Get Archive Information:**
+```bash
+# Basic info: type, version, file count, total size
+dotnet run --project src/SpookysAutomod.Cli -- archive info "MyMod.bsa" --json
+
+# List first 100 files
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --json
+
+# List all files (0 = unlimited)
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --limit 0 --json
+
+# Filter by pattern
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --filter "*.nif" --json
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --filter "textures/*" --json
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --filter "scripts/*.pex" --json
+```
+
+**Extract Archives:**
+```bash
+# Extract entire archive
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "MyMod.bsa" --output "./Extracted" --json
+
+# Extract only textures
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "MyMod.bsa" --output "./Textures" --filter "textures/*" --json
+
+# Extract only scripts for decompilation
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "MyMod.bsa" --output "./Scripts" --filter "scripts/*" --json
+
+# Extract only meshes
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "MyMod.bsa" --output "./Meshes" --filter "*.nif" --json
+```
+
+**Create Archives:**
+```bash
+# Basic SSE archive (compressed by default)
+dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" --output "MyMod.bsa" --json
+
+# Uncompressed archive (faster loading)
+dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" --output "MyMod.bsa" --compress false --json
+
+# LE-compatible archive
+dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" --output "MyMod.bsa" --game le --json
+
+# Fallout 4 BA2
+dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" --output "MyMod.ba2" --game fo4 --json
+```
+
+**Directory Structure for Packaging:**
+
+The source directory must mirror Skyrim's Data folder structure:
+
+```
+MyModData/
+  meshes/
+    mymod/
+      weapon.nif
+      armor.nif
+  textures/
+    mymod/
+      weapon.dds
+      weapon_n.dds
+  scripts/
+    MyMod_Script.pex
+  sound/
+    fx/
+      mymod/
+        sound.wav
+```
+
+### Archive Editing Operations
+
+Archive editing uses an extract-modify-repack workflow. The toolkit handles this automatically.
+
+**Add Files to Existing Archive:**
+```bash
+# Add new files, preserving directory structure
+dotnet run --project src/SpookysAutomod.Cli -- archive add-files "MyMod.bsa" \
+  --files "meshes/mymod/newweapon.nif" "textures/mymod/newweapon.dds" \
+  --json
+
+# Specify base directory explicitly (for relative path calculation)
+dotnet run --project src/SpookysAutomod.Cli -- archive add-files "MyMod.bsa" \
+  --files "C:/ModWork/meshes/item.nif" "C:/ModWork/textures/item.dds" \
+  --base-dir "C:/ModWork" \
+  --json
+
+# Automatic base directory detection (finds common parent)
+dotnet run --project src/SpookysAutomod.Cli -- archive add-files "MyMod.bsa" \
+  --files "./assets/meshes/a.nif" "./assets/meshes/b.nif" "./assets/textures/a.dds" \
+  --json
+
+# Control compression (defaults to preserving original settings)
+dotnet run --project src/SpookysAutomod.Cli -- archive add-files "MyMod.bsa" \
+  --files "newfile.nif" \
+  --preserve-compression false \
+  --json
+```
+
+**Remove Files from Archive:**
+```bash
+# Remove all ESP files
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "*.esp" --json
+
+# Remove old scripts folder
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "scripts/old/*" --json
+
+# Remove specific file
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "deprecated.txt" --json
+
+# Remove multiple patterns (run multiple commands)
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "*.esp" --json
+dotnet run --project src/SpookysAutomod.Cli -- archive remove-files "MyMod.bsa" --filter "debug/*" --json
+```
+
+**Replace Files in Archive:**
+```bash
+# Replace all matching files from directory
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "MyMod.bsa" \
+  --source "./UpdatedScripts" \
+  --json
+
+# Replace only specific patterns
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "MyMod.bsa" \
+  --source "./UpdatedAssets" \
+  --filter "*.pex" \
+  --json
+
+# Replace textures only
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "MyMod.bsa" \
+  --source "./NewTextures" \
+  --filter "textures/*" \
+  --json
+```
+
+### Single File Operations
+
+**Extract Single File (Fast):**
+```bash
+# Extract one file without unpacking entire archive
+dotnet run --project src/SpookysAutomod.Cli -- archive extract-file "MyMod.bsa" \
+  --file "scripts/MainScript.pex" \
+  --output "./MainScript.pex" \
+  --json
+
+# Extract for inspection
+dotnet run --project src/SpookysAutomod.Cli -- archive extract-file "MyMod.bsa" \
+  --file "meshes/weapon.nif" \
+  --output "./inspect/weapon.nif" \
+  --json
+```
+
+**Update Single File (Convenience):**
+```bash
+# Update just one script after recompiling
+dotnet run --project src/SpookysAutomod.Cli -- archive update-file "MyMod.bsa" \
+  --file "scripts/MainScript.pex" \
+  --source "./MainScript.pex" \
+  --json
+
+# Update one texture
+dotnet run --project src/SpookysAutomod.Cli -- archive update-file "MyMod.bsa" \
+  --file "textures/armor.dds" \
+  --source "./new_armor.dds" \
+  --json
+```
+
+### Archive Maintenance Operations
+
+**Merge Multiple Archives:**
+```bash
+# Combine base mod + patches into single archive
+dotnet run --project src/SpookysAutomod.Cli -- archive merge \
+  "MyMod-Base.bsa" \
+  "MyMod-Patch1.bsa" \
+  "MyMod-Patch2.bsa" \
+  --output "MyMod-Complete.bsa" \
+  --json
+
+# Later archives overwrite earlier ones on conflict
+# Result includes conflict tracking in JSON output
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "outputPath": "MyMod-Complete.bsa",
+    "archivesMerged": 3,
+    "totalFiles": 487,
+    "conflicts": [
+      "scripts/MainScript.pex (overwritten by MyMod-Patch2.bsa)",
+      "textures/armor.dds (overwritten by MyMod-Patch1.bsa)"
+    ],
+    "filesPerArchive": {
+      "MyMod-Base.bsa": 450,
+      "MyMod-Patch1.bsa": 25,
+      "MyMod-Patch2.bsa": 12
+    }
+  }
+}
+```
+
+**Validate Archive Integrity:**
+```bash
+# Check if archive is valid and report issues
+dotnet run --project src/SpookysAutomod.Cli -- archive validate "MyMod.bsa" --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "isValid": true,
+    "fileCount": 450,
+    "archiveSize": 52428800,
+    "archiveType": "BSA",
+    "issues": [],
+    "warnings": [
+      "Archive contains no scripts",
+      "Some texture files exceed 2048x2048"
+    ]
+  }
+}
+```
+
+**Optimize Archive (Repack with Compression):**
+```bash
+# Optimize and report savings
+dotnet run --project src/SpookysAutomod.Cli -- archive optimize "OldMod.bsa" --json
+
+# Optimize to new file (preserve original)
+dotnet run --project src/SpookysAutomod.Cli -- archive optimize "OldMod.bsa" \
+  --output "OldMod-Optimized.bsa" \
+  --json
+
+# Optimize without compression (defragment only)
+dotnet run --project src/SpookysAutomod.Cli -- archive optimize "MyMod.bsa" \
+  --compress false \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "outputPath": "OldMod-Optimized.bsa",
+    "originalSize": 104857600,
+    "optimizedSize": 62914560,
+    "savings": 41943040,
+    "savingsPercent": 40.0,
+    "fileCount": 450
+  }
+}
+```
+
+**Compare Archive Versions (Diff):**
+```bash
+# See what changed between versions
+dotnet run --project src/SpookysAutomod.Cli -- archive diff \
+  "MyMod-v1.bsa" \
+  "MyMod-v2.bsa" \
+  --json
+```
+
+**Example JSON Response:**
+```json
+{
+  "success": true,
+  "result": {
+    "archive1": "MyMod-v1.bsa",
+    "archive2": "MyMod-v2.bsa",
+    "filesAdded": [
+      "meshes/newweapon.nif",
+      "textures/newweapon.dds"
+    ],
+    "filesRemoved": [
+      "scripts/oldscript.pex"
+    ],
+    "filesModified": [
+      "scripts/mainscript.pex",
+      "textures/armor.dds"
+    ],
+    "filesUnchanged": [
+      "meshes/weapon.nif",
+      "textures/weapon.dds"
+    ],
+    "totalFiles1": 448,
+    "totalFiles2": 451
+  }
+}
+```
+
+### Complete Archive Workflow Examples
+
+**Workflow 1: Inspect Existing Mod**
+```bash
+# Step 1: Get basic info
+dotnet run --project src/SpookysAutomod.Cli -- archive info "SomeMod.bsa" --json
+
+# Step 2: List specific asset types
+dotnet run --project src/SpookysAutomod.Cli -- archive list "SomeMod.bsa" --filter "*.nif" --json
+dotnet run --project src/SpookysAutomod.Cli -- archive list "SomeMod.bsa" --filter "*.pex" --json
+
+# Step 3: Extract for detailed analysis
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "SomeMod.bsa" --output "./Analysis" --json
+```
+
+**Workflow 2: Package New Mod**
+```bash
+# Step 1: Organize files in Data structure
+# MyModData/
+#   meshes/mymod/weapon.nif
+#   textures/mymod/weapon.dds
+#   scripts/MyMod_Script.pex
+
+# Step 2: Create compressed SSE archive
+dotnet run --project src/SpookysAutomod.Cli -- archive create "./MyModData" \
+  --output "MyMod.bsa" \
+  --json
+
+# Step 3: Validate archive
+dotnet run --project src/SpookysAutomod.Cli -- archive validate "MyMod.bsa" --json
+
+# Step 4: Check contents
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --limit 0 --json
+```
+
+**Workflow 3: Update Scripts in Archive**
+```bash
+# Step 1: Extract scripts for decompilation
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "MyMod.bsa" \
+  --output "./Scripts" \
+  --filter "scripts/*" \
+  --json
+
+# Step 2: Decompile scripts
+dotnet run --project src/SpookysAutomod.Cli -- papyrus decompile "./Scripts/scripts" \
+  --output "./Scripts/Source" \
+  --json
+
+# Step 3: Edit PSC files (make changes)
+
+# Step 4: Recompile scripts
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Scripts/Source" \
+  --output "./Scripts/Compiled" \
+  --headers "./skyrim-script-headers" \
+  --json
+
+# Step 5: Replace scripts in archive
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "MyMod.bsa" \
+  --source "./Scripts/Compiled" \
+  --filter "*.pex" \
+  --json
+
+# Step 6: Verify update
+dotnet run --project src/SpookysAutomod.Cli -- archive list "MyMod.bsa" --filter "*.pex" --json
+```
+
+**Workflow 4: Create Texture Patch**
+```bash
+# Step 1: Extract original textures
+dotnet run --project src/SpookysAutomod.Cli -- archive extract "OriginalMod.bsa" \
+  --output "./Patch" \
+  --filter "textures/armor/*" \
+  --json
+
+# Step 2: Edit textures with external tools (Photoshop, GIMP, etc.)
+
+# Step 3: Replace textures in archive
+dotnet run --project src/SpookysAutomod.Cli -- archive replace-files "OriginalMod.bsa" \
+  --source "./Patch" \
+  --filter "textures/armor/*" \
+  --json
+
+# Step 4: Compare to verify changes
+dotnet run --project src/SpookysAutomod.Cli -- archive diff \
+  "OriginalMod_Backup.bsa" \
+  "OriginalMod.bsa" \
+  --json
+```
+
+**Workflow 5: Merge Mod Patches**
+```bash
+# Step 1: Check what each archive contains
+dotnet run --project src/SpookysAutomod.Cli -- archive info "Base.bsa" --json
+dotnet run --project src/SpookysAutomod.Cli -- archive info "Patch1.bsa" --json
+dotnet run --project src/SpookysAutomod.Cli -- archive info "Patch2.bsa" --json
+
+# Step 2: Merge all patches into single archive
+dotnet run --project src/SpookysAutomod.Cli -- archive merge \
+  "Base.bsa" "Patch1.bsa" "Patch2.bsa" \
+  --output "Complete.bsa" \
+  --json
+
+# Step 3: Validate merged archive
+dotnet run --project src/SpookysAutomod.Cli -- archive validate "Complete.bsa" --json
+
+# Step 4: Compare to original
+dotnet run --project src/SpookysAutomod.Cli -- archive diff "Base.bsa" "Complete.bsa" --json
+```
+
+**Workflow 6: Optimize Legacy Mod**
+```bash
+# Step 1: Check current size
+dotnet run --project src/SpookysAutomod.Cli -- archive info "LegacyMod.bsa" --json
+
+# Step 2: Validate integrity first
+dotnet run --project src/SpookysAutomod.Cli -- archive validate "LegacyMod.bsa" --json
+
+# Step 3: Optimize with compression
+dotnet run --project src/SpookysAutomod.Cli -- archive optimize "LegacyMod.bsa" \
+  --output "LegacyMod-Optimized.bsa" \
+  --json
+
+# Step 4: Verify no data loss
+dotnet run --project src/SpookysAutomod.Cli -- archive diff \
+  "LegacyMod.bsa" \
+  "LegacyMod-Optimized.bsa" \
+  --json
+# Should show only size changes, no added/removed files
+```
+
+**Workflow 7: Quick Single File Update**
+```bash
+# Step 1: Extract file for editing
+dotnet run --project src/SpookysAutomod.Cli -- archive extract-file "MyMod.bsa" \
+  --file "scripts/MainScript.pex" \
+  --output "./MainScript.pex" \
+  --json
+
+# Step 2: Decompile script
+dotnet run --project src/SpookysAutomod.Cli -- papyrus decompile "./MainScript.pex" \
+  --output "./Source" \
+  --json
+
+# Step 3: Edit and recompile
+dotnet run --project src/SpookysAutomod.Cli -- papyrus compile "./Source/MainScript.psc" \
+  --output "./" \
+  --headers "./skyrim-script-headers" \
+  --json
+
+# Step 4: Update just that one file
+dotnet run --project src/SpookysAutomod.Cli -- archive update-file "MyMod.bsa" \
+  --file "scripts/MainScript.pex" \
+  --source "./MainScript.pex" \
+  --json
+```
+
+### Archive Best Practices for AI Assistants
+
+**When to Extract vs When to Use Single File Operations:**
+
+| Operation | Use Single File | Use Full Extract |
+|-----------|----------------|------------------|
+| Inspect one script | ✅ `extract-file` | ❌ Slower |
+| Update one texture | ✅ `update-file` | ❌ Unnecessary |
+| Decompile all scripts | ❌ Need all files | ✅ `extract --filter` |
+| Replace multiple files | ❌ Need context | ✅ `replace-files` |
+
+**Compression Guidelines:**
+
+- **Compressed (default)**: Smaller downloads, standard for distribution
+- **Uncompressed**: Faster loading, better for development/testing
+- **Preserve (editing)**: Keep original settings when modifying archives
+
+**Archive Editing Performance:**
+
+All editing operations (add-files, remove-files, replace-files, update-file) use extract-modify-repack workflow. For large archives, expect:
+- Small archives (<100 files): ~2-3 seconds
+- Medium archives (100-500 files): ~5-10 seconds
+- Large archives (500+ files): ~15-30 seconds
+
+**Error Handling:**
+
+Always check JSON responses for success/failure:
+```bash
+result=$(dotnet run --project src/SpookysAutomod.Cli -- archive add-files "Mod.bsa" --files "new.nif" --json)
+success=$(echo "$result" | jq -r '.success')
+
+if [ "$success" != "true" ]; then
+  error=$(echo "$result" | jq -r '.error')
+  suggestions=$(echo "$result" | jq -r '.suggestions[]')
+  echo "Error: $error"
+  echo "Suggestions: $suggestions"
+  exit 1
+fi
+```
+
+**Common Issues and Solutions:**
+
+| Issue | Solution |
+|-------|----------|
+| BSArch not found | Check `archive status`, install from xEdit |
+| Wrong directory structure | Verify files mirror Data folder layout |
+| Archive corrupted after edit | Run `validate` before editing |
+| File not replaced | Ensure exact path match (case-sensitive) |
+| Base directory auto-detection wrong | Use explicit `--base-dir` parameter |
+
+---
+
 ## Creating Patches
 
 ### Merge Records from Multiple Mods
@@ -1276,8 +1798,17 @@ When success is false:
 | Check tools | `archive status` |
 | Get info | `archive info archive` |
 | List contents | `archive list archive [--filter] [--limit]` |
-| Extract | `archive extract archive --output dir` |
+| Extract | `archive extract archive --output dir [--filter]` |
 | Create | `archive create directory --output file [--compress] [--game]` |
+| Add files | `archive add-files archive --files file1 file2 ... [--base-dir] [--preserve-compression]` |
+| Remove files | `archive remove-files archive --filter pattern [--preserve-compression]` |
+| Replace files | `archive replace-files archive --source dir [--filter] [--preserve-compression]` |
+| Update file | `archive update-file archive --file target --source file [--preserve-compression]` |
+| Extract file | `archive extract-file archive --file target --output path` |
+| Merge | `archive merge archive1 archive2 ... --output file [--compress]` |
+| Validate | `archive validate archive` |
+| Optimize | `archive optimize archive [--output] [--compress]` |
+| Diff | `archive diff archive1 archive2` |
 
 ### MCM (Configuration)
 
