@@ -17,10 +17,11 @@ A command-line toolkit that enables AI assistants (Claude, ChatGPT, etc.) to cre
 ```
 > "Create a sword called Frostbane that does 30 damage"
 > "Decompile the scripts from this mod so I can see how it works"
+> "Update just the broken script in this BSA without extracting everything"
 > "Add a new perk to my existing mod"
 ```
 
-Create new mods, inspect existing ones, extract archives, decompile scripts, and more.
+Create new mods, inspect existing ones, edit archives, decompile scripts, view records, and more.
 
 ---
 
@@ -318,10 +319,10 @@ This toolkit includes **Claude Code Skills** - specialized instruction files tha
 
 | Skill | Trigger | Purpose |
 |-------|---------|---------|
-| `skyrim-esp` | Create plugins, add weapons/armor/spells/perks | Full ESP/ESL plugin creation and modification |
+| `skyrim-esp` | Create plugins, add weapons/armor/spells/perks, view/override records | Full ESP/ESL plugin creation and modification, record viewing system |
 | `skyrim-papyrus` | Write scripts, fix script errors | Compile, decompile, validate, generate scripts |
 | `skyrim-mcm` | Add mod settings menu | Create MCM Helper configurations |
-| `skyrim-archive` | Package or extract BSA files | Read, extract, and create archives |
+| `skyrim-archive` | Package or extract BSA files, edit archives | Read, extract, create, and modify archives without full repackaging |
 | `skyrim-nif` | Check meshes, find textures | Inspect and scale 3D mesh files |
 | `skyrim-audio` | Work with voice files | Handle FUZ/XWM/WAV audio |
 | `skyrim-skse` | Create native plugins | Generate SKSE C++ plugin projects |
@@ -370,8 +371,17 @@ esp info "SomeMod.esp"
 # List master dependencies
 esp list-masters "SomeMod.esp"
 
+# View detailed record information
+esp view-record "SomeMod.esp" --editor-id "CustomSpell" --type spell --json
+
 # See what's inside an archive
 archive list "SomeMod.bsa" --limit 50
+
+# Validate archive integrity
+archive validate "SomeMod.bsa"
+
+# Compare archive versions
+archive diff "SomeMod_v1.bsa" "SomeMod_v2.bsa"
 
 # Check what textures a mesh uses
 nif textures "Meshes/Armor/CustomArmor.nif"
@@ -404,6 +414,12 @@ esp add-perk "ExistingMod.esp" "BonusPerk" --name "Extra Damage" --effect weapon
 
 # Merge records from one plugin into another
 esp merge "Patch.esp" "MainMod.esp" --output "MainMod_Patched.esp"
+
+# Edit archives without full repackaging
+archive add-files "ExistingMod.bsa" "./NewAssets" --base-dir "./NewAssets"
+archive remove-files "ExistingMod.bsa" --pattern "*.esp"
+archive replace-files "ExistingMod.bsa" "./UpdatedScripts" --pattern "scripts/*"
+archive update-file "ExistingMod.bsa" "./Fixed.pex" "scripts/broken.pex"
 
 # Scale a mesh
 nif scale "Meshes/Weapon.nif" 1.5 --output "Meshes/Weapon_Large.nif"
@@ -549,10 +565,27 @@ papyrus validate "Script.psc"
 ### Archives (archive)
 
 ```bash
+# Archive Info & Inspection
 archive info "Archive.bsa"
-archive extract "Archive.bsa" --output "./Extracted"
-archive create "./DataFolder" --output "MyMod.bsa" --game sse
+archive list "Archive.bsa" --limit 50
+archive validate "Archive.bsa"
+archive diff "Original.bsa" "Modified.bsa"
 archive status
+
+# Extraction & Creation
+archive extract "Archive.bsa" --output "./Extracted"
+archive extract-file "Archive.bsa" "scripts/mymod.pex" --output "./Scripts"
+archive create "./DataFolder" --output "MyMod.bsa" --game sse
+
+# Archive Editing (modify existing archives)
+archive add-files "MyMod.bsa" "./NewFiles" --base-dir "./NewFiles"
+archive remove-files "MyMod.bsa" --pattern "*.esp"
+archive replace-files "MyMod.bsa" "./UpdatedFiles" --pattern "scripts/*"
+archive update-file "MyMod.bsa" "./Scripts/Updated.pex" "scripts/Updated.pex"
+
+# Archive Maintenance
+archive merge "Mod1.bsa" "Mod2.bsa" --output "Merged.bsa"
+archive optimize "MyMod.bsa" --output "Optimized.bsa"
 ```
 
 ### MCM (mcm)
