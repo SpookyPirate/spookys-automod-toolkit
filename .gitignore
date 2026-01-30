@@ -44,6 +44,9 @@ tmpclaude-*
 spookys-automod-toolkit.code-workspace
 temp/
 
+# Release preparation
+release-staging/
+
 # Keeping private for now
 CONTRIBUTING.md
 ENHANCEMENTS.md
